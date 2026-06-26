@@ -297,7 +297,7 @@ async function buscarPaginasAmarillas(rubro, ciudad, cantidad) {
       const palabrasCiudad = ciudadNorm.split(' ').filter(p => p.length > 3);
       const coincide = palabrasCiudad.length === 0
         ? true
-        : palabrasCiudad.some(p => locEmpresa.includes(p));
+        : palabrasCiudad.every(p => locEmpresa.includes(p));
 
       if (!coincide) continue;
 
