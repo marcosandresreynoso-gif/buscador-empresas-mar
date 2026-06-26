@@ -166,19 +166,40 @@ async function buscarGoogleMaps(query, location, cantidad) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// MÓDULO PÁGINAS AMARILLAS — scraping vía fichas individuales
+// MÓDULO PÁGINAS AMARILLAS — scraping real con Puppeteer
 // ═══════════════════════════════════════════════════════════
-// El listado (/b/{rubro}/{ciudad}) se renderiza con JS y no trae
-// datos en el HTML plano. Las fichas individuales (/fichas/...)
-// sí exponen teléfono/dirección en texto. Estrategia:
-//   1) Pedimos el listado igual (a veces incluye nombres en metadatos
-//      y enlaces a fichas en el HTML server-rendered).
-//   2) Para cada ficha encontrada, hacemos fetch y extraemos los datos.
-//   3) Si el listado no trae nada usable, devolvemos vacío sin romper
-//      el flujo general (la fuente queda disponible para cuando el
-//      sitio cambie de tecnología o se sume soporte con navegador real).
+// El sitio renderiza listado y fichas con JavaScript (Next.js),
+// así que un fetch simple no alcanza. Usamos un Chrome headless
+// (Puppeteer) que carga la página como lo haría una persona.
+//
+// Requiere que "puppeteer" esté en package.json como dependencia.
+// Si no está instalado, lo detectamos y devolvemos vacío sin romper
+// el servidor (la ruta /buscar-empresas cae a IA automáticamente).
+//
+// Tope conservador (PA_MAX) pensado para el plan Starter de Render
+// (512 MB RAM): evita quedarse sin memoria y evita que una sola
+// búsqueda tarde tanto que se corte por timeout.
+
+let puppeteer = null;
+try {
+  puppeteer = require('puppeteer');
+} catch {
+  console.warn('⚠️  Puppeteer no está instalado (falta en package.json). La fuente "Páginas Amarillas" usará el respaldo de IA.');
+}
 
 const PA_BASE = 'https://www.paginasamarillas.com.ar';
+const PA_MAX_POR_BUSQUEDA = 30; // tope de seguridad — plan Starter 512MB
+const PA_CONCURRENCY = 2;       // pestañas simultáneas dentro del mismo navegador
+
+const PUPPETEER_ARGS = [
+  '--no-sandbox',
+  '--disable-setuid-sandbox',
+  '--disable-dev-shm-usage',
+  '--disable-gpu',
+  '--disable-extensions',
+  '--single-process',
+  '--no-zygote',
+];
 
 function slugify(texto) {
   return String(texto)
@@ -189,93 +210,97 @@ function slugify(texto) {
     .replace(/\s+/g, '-');
 }
 
-async function fetchHtmlPA(url) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 9000);
+async function extraerFichaConPuppeteer(browser, url, rubro, ciudadFallback) {
+  const page = await browser.newPage();
   try {
-    const res = await fetch(url, {
-      headers: {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
-        Accept: 'text/html',
-      },
-      signal: controller.signal,
-      redirect: 'follow',
+    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36');
+    await page.setRequestInterception(true);
+    page.on('request', (req) => {
+      // Bloqueamos imágenes/fuentes/css para que cargue más rápido y liviano
+      if (['image', 'font', 'stylesheet', 'media'].includes(req.resourceType())) req.abort();
+      else req.continue();
     });
-    if (!res.ok) return null;
-    return await res.text();
+
+    await page.goto(url, { waitUntil: 'networkidle2', timeout: 15000 });
+
+    // Si hay un botón "Ver Teléfono", lo clickeamos para revelar el número
+    await page.evaluate(() => {
+      const candidatos = [...document.querySelectorAll('button, a, span, div')];
+      const boton = candidatos.find(b => /ver tel[eé]fono/i.test(b.textContent || ''));
+      if (boton) boton.click();
+    }).catch(() => {});
+    await new Promise(r => setTimeout(r, 900));
+
+    const nombre = (await page.title()).split(' en ')[0].split(' - ')[0].trim();
+    const texto = await page.evaluate(() => document.body.innerText || '');
+
+    const telMatch = texto.match(/Tel[eé]fono[^0-9+]*([+0-9][0-9()\-\s]{6,20})/i);
+    const dirMatch = texto.match(/Direcci[oó]n[^A-Za-zÁÉÍÓÚñÑ]*([^\n]{5,90})/i);
+
+    const email = await page.evaluate(() => {
+      const a = document.querySelector('a[href^="mailto:"]');
+      return a ? a.getAttribute('href').replace('mailto:', '').split('?')[0] : '';
+    }).catch(() => '');
+
+    const web = await page.evaluate(() => {
+      const a = [...document.querySelectorAll('a[href^="http"]')].find(a => !/paginasamarillas/i.test(a.href));
+      return a ? a.href : '';
+    }).catch(() => '');
+
+    if (!telMatch && !dirMatch && !email && !web) return null;
+
+    return {
+      nombre,
+      rubro,
+      telefono: telMatch ? telMatch[1].trim() : '',
+      direccion: (dirMatch ? dirMatch[1].trim() : '') || ciudadFallback,
+      email: email || '',
+      web: web || '',
+    };
   } catch {
     return null;
   } finally {
-    clearTimeout(timer);
+    await page.close().catch(() => {});
   }
 }
 
-function extraerFichasDelListado(html) {
-  // Busca enlaces a /fichas/{slug}_{id}
-  if (!html) return [];
-  const set = new Set();
-  for (const m of html.matchAll(/href="(\/fichas\/[a-z0-9-]+_\d+)\/?"/gi)) {
-    set.add(PA_BASE + m[1]);
-  }
-  return [...set];
-}
+async function buscarPaginasAmarillas(rubro, ciudad, cantidad) {
+  if (!puppeteer) return []; // no instalado todavía → ruta llamadora cae a IA
 
-function extraerDatosFicha(html, fallbackNombre) {
-  if (!html) return null;
-  // Nombre: del <title> o de un h1
-  let nombre = fallbackNombre || '';
-  const tituloMatch = html.match(/<title>([^<]+)<\/title>/i);
-  if (tituloMatch) {
-    nombre = tituloMatch[1].split(' en ')[0].split(' - ')[0].trim();
-  }
-  // Teléfono: patrones tipo "+ (03388) 42 - 1503" o similares en texto plano
-  let telefono = '';
-  const telMatch = html.match(/Tel[eé]fono[^0-9+]*([+0-9][0-9()\-\s]{6,20})/i);
-  if (telMatch) telefono = telMatch[1].replace(/\s{2,}/g, ' ').trim();
-  // Dirección
-  let direccion = '';
-  const dirMatch = html.match(/Direcci[oó]n[^A-Za-zÁÉÍÓÚñÑ]*([^<\n]{5,90})/i);
-  if (dirMatch) direccion = dirMatch[1].trim();
-  // Email visible (mailto o texto)
-  let email = '';
-  const mailMatch = html.match(/href="mailto:([^"?]+)"/i) || html.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/);
-  if (mailMatch) email = (mailMatch[1] || mailMatch[0] || '').toLowerCase();
-  // Web (si la ficha linkea un sitio externo propio, no de paginasamarillas)
-  let web = '';
-  const webMatch = html.match(/href="(https?:\/\/(?!www\.paginasamarillas)[^"]+)"[^>]*>\s*(?:Visitar sitio|Sitio web|Web)/i);
-  if (webMatch) web = webMatch[1];
-
-  if (!telefono && !direccion && !email && !web) return null; // ficha sin datos útiles
-  return { nombre, telefono, direccion, email, web };
-}
-
-async function buscarPaginasAmarillas(rubro, ciudad, cantidad, concurrency = 3) {
+  const max = Math.min(cantidad, PA_MAX_POR_BUSQUEDA);
   const rubroSlug = slugify(rubro);
   const ciudadSlug = slugify(ciudad);
   const listadoUrl = `${PA_BASE}/b/${rubroSlug}/${ciudadSlug}`;
-  const htmlListado = await fetchHtmlPA(listadoUrl);
-  const fichas = extraerFichasDelListado(htmlListado).slice(0, Math.min(cantidad, 200));
 
-  if (!fichas.length) {
-    // No pudimos extraer fichas del listado (probable render 100% client-side).
-    // Devolvemos vacío para que el llamador pueda decidir un fallback.
-    return [];
-  }
-
+  let browser;
   const empresas = [];
-  for (let i = 0; i < fichas.length; i += concurrency) {
-    const lote = fichas.slice(i, i + concurrency);
-    const resultados = await Promise.all(lote.map(async (url) => {
-      const html = await fetchHtmlPA(url);
-      const datos = extraerDatosFicha(html);
-      if (!datos) return null;
-      return { ...datos, rubro, direccion: datos.direccion || ciudad };
-    }));
-    resultados.forEach(r => { if (r) empresas.push(r); });
-    if (empresas.length >= cantidad) break;
+  try {
+    browser = await puppeteer.launch({ headless: true, args: PUPPETEER_ARGS });
+
+    const listPage = await browser.newPage();
+    await listPage.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36');
+    await listPage.goto(listadoUrl, { waitUntil: 'networkidle2', timeout: 20000 });
+    try { await listPage.waitForSelector('a[href*="/fichas/"]', { timeout: 8000 }); } catch {}
+
+    const fichas = await listPage.$$eval('a[href*="/fichas/"]', (as) => [...new Set(as.map(a => a.href))]).catch(() => []);
+    await listPage.close().catch(() => {});
+
+    const fichasLimitadas = fichas.slice(0, max);
+
+    for (let i = 0; i < fichasLimitadas.length && empresas.length < max; i += PA_CONCURRENCY) {
+      const lote = fichasLimitadas.slice(i, i + PA_CONCURRENCY);
+      const resultados = await Promise.all(
+        lote.map(url => extraerFichaConPuppeteer(browser, url, rubro, ciudad))
+      );
+      resultados.forEach(r => { if (r) empresas.push(r); });
+    }
+  } catch (e) {
+    console.error('Error Puppeteer Páginas Amarillas:', e.message);
+  } finally {
+    if (browser) await browser.close().catch(() => {});
   }
 
-  return empresas.slice(0, cantidad);
+  return empresas.slice(0, max);
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -501,3 +526,8 @@ const server = http.createServer(async (req, res) => {
 });
 
 server.listen(PORT, () => console.log(`M-AR buscador de empresas en puerto ${PORT} — ${GROQ_KEYS.length} keys Groq cargadas`));
+
+// Búsquedas con Puppeteer pueden tardar más que una request normal.
+// Subimos estos valores para que no se corten antes de tiempo.
+server.keepAliveTimeout = 120000;
+server.headersTimeout = 120000;
