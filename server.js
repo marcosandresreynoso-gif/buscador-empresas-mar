@@ -261,7 +261,7 @@ async function extraerFichaConPuppeteer(browser, url, rubro, ciudadFallback) {
     // que son banners/publicidad propia del sitio (gurusoluciones,
     // "anuncia-con-nosotros", google, facebook genéricos sin ruta, etc.)
     const web = await page.evaluate(() => {
-      const excluidos = /paginasamarillas|gurusoluciones|anuncia-con-nosotros|google\.com|doubleclick|facebook\.com\/paginasamarillas/i;
+    const excluidos = /paginasamarillas|amarillas\.(cl|com|net)|gurusoluciones|anuncia-con-nosotros|google\.com|doubleclick|facebook\.com\/paginasamarillas/i;
       const a = [...document.querySelectorAll('a[href^="http"]')].find(a => !excluidos.test(a.href));
       return a ? a.href : '';
     }).catch(() => '');
