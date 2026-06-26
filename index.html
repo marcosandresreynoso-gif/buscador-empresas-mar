@@ -1,545 +1,655 @@
-// server.js — M-AR & Asociados — Buscador de Empresas
-// Rota automáticamente entre GROQ_API_KEY, GROQ_API_KEY_2, GROQ_API_KEY_3, GROQ_API_KEY_4
-// Fuentes: Google Maps (paginación hasta 500) | Páginas Amarillas (scraping de fichas) | IA (Groq)
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Buscador de Empresas — M-AR & Asociados</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=Inter:wght@300;400;500&display=swap');
+  :root{--negro:#0D0D0D;--blanco:#F7F5F0;--acento:#C8A96E;--verde:#4A9E7F;--azul:#6E8FC8;--borde:#1E1E1E;--texto-sec:#666;}
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--negro);color:var(--blanco);font-family:'Inter',sans-serif;min-height:100vh;}
+  header{padding:18px 24px;border-bottom:1px solid var(--borde);display:flex;align-items:center;gap:14px;}
+  .logo{width:40px;height:40px;border:1.5px solid var(--acento);display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:800;font-size:11px;color:var(--acento);}
+  .header-info h1{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;}
+  .header-info p{font-size:10px;color:var(--texto-sec);margin-top:2px;}
+  .tabs{display:flex;border-bottom:1px solid var(--borde);}
+  .tab{flex:1;padding:12px;background:none;border:none;border-bottom:2px solid transparent;color:var(--texto-sec);font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;transition:all .2s;}
+  .tab.activo{color:var(--acento);border-bottom-color:var(--acento);}
+  .tab-content{display:none;padding:20px;max-width:960px;margin:0 auto;}
+  .tab-content.activo{display:block;}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;}
+  .form-group{display:flex;flex-direction:column;gap:5px;}
+  .form-group label{font-size:10px;color:var(--texto-sec);font-family:'Syne',sans-serif;letter-spacing:1px;text-transform:uppercase;}
+  .form-group select,.form-group input,.form-group textarea{background:#111;border:1px solid #2A2A2A;padding:10px 13px;color:var(--blanco);font-family:'Inter',sans-serif;font-size:13px;outline:none;border-radius:4px;}
+  .form-group select:focus,.form-group input:focus,.form-group textarea:focus{border-color:var(--acento);}
+  .form-group textarea{resize:vertical;min-height:110px;line-height:1.6;}
+  .btn{padding:11px 18px;border:none;font-family:'Syne',sans-serif;font-weight:700;font-size:11px;letter-spacing:.8px;text-transform:uppercase;cursor:pointer;border-radius:4px;transition:opacity .2s;}
+  .btn:hover{opacity:.85;}.btn:disabled{opacity:.25;cursor:default;}
+  .btn-acento{background:var(--acento);color:var(--negro);}
+  .btn-verde{background:var(--verde);color:#fff;}
+  .btn-azul{background:var(--azul);color:#fff;}
+  .btn-full{width:100%;padding:13px;}
+  .prog-wrap{display:none;margin:14px 0;}
+  .prog-label{font-size:11px;color:var(--texto-sec);font-family:'Syne',sans-serif;margin-bottom:5px;}
+  .prog-bar{height:2px;background:#1A1A1A;border-radius:2px;overflow:hidden;}
+  .prog-fill{height:100%;background:var(--acento);width:0%;transition:width .4s;}
+  .resultados-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;}
+  .count{font-family:'Syne',sans-serif;font-size:12px;color:var(--acento);}
+  .acciones{display:flex;gap:8px;flex-wrap:wrap;}
+  .tabla-wrap{overflow-x:auto;margin-bottom:14px;}
+  table{width:100%;border-collapse:collapse;font-size:12px;}
+  thead tr{border-bottom:1px solid var(--acento);}
+  th{padding:9px 10px;text-align:left;font-family:'Syne',sans-serif;font-size:10px;letter-spacing:1px;text-transform:uppercase;color:var(--acento);white-space:nowrap;}
+  tbody tr{border-bottom:1px solid #161616;transition:background .15s;}
+  tbody tr:hover{background:#111;}
+  td{padding:8px 10px;color:#DDD9D0;vertical-align:top;font-size:12px;}
+  td a{color:var(--verde);text-decoration:none;}
+  input[type=checkbox]{accent-color:var(--acento);width:14px;height:14px;}
+  .badge{display:inline-block;font-size:10px;padding:2px 7px;border-radius:10px;border:1px solid #2A2A2A;color:var(--texto-sec);}
+  .badge-fuente{display:inline-block;font-size:10px;padding:2px 8px;border-radius:10px;margin-left:8px;}
+  .badge-fuente.maps{background:#4A9E7F20;color:var(--verde);border:1px solid var(--verde);}
+  .badge-fuente.pa{background:#C8A96E20;color:var(--acento);border:1px solid var(--acento);}
+  .badge-fuente.ia{background:#6E8FC820;color:var(--azul);border:1px solid var(--azul);}
+  .envio-panel{background:#111;border:1px solid #2A2A2A;padding:20px;border-radius:4px;margin-top:14px;}
+  .envio-panel h3{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--acento);margin-bottom:14px;}
+  .envio-tabs{display:flex;gap:8px;margin-bottom:14px;}
+  .envio-tab{padding:7px 14px;border:1px solid #2A2A2A;background:none;color:var(--texto-sec);font-family:'Syne',sans-serif;font-size:11px;font-weight:700;cursor:pointer;border-radius:4px;transition:all .2s;}
+  .envio-tab.activo{border-color:var(--verde);color:var(--verde);}
+  .envio-content{display:none;}.envio-content.activo{display:block;}
+  .info-box{background:#0A0A0A;border:1px solid #1A1A1A;border-left:3px solid var(--azul);padding:10px 14px;font-size:11px;color:var(--texto-sec);margin-bottom:12px;line-height:1.6;}
+  .info-box strong{color:var(--azul);}
+  #estado-envio{margin-top:10px;font-size:12px;color:var(--verde);font-family:'Syne',sans-serif;min-height:16px;}
+  .aviso{background:#111;border:1px solid var(--verde);border-left:3px solid var(--verde);padding:10px 14px;font-size:11px;color:var(--texto-sec);margin-bottom:16px;line-height:1.6;}
+  .aviso strong{color:var(--verde);}
+  .archivo-item{background:#0D0D0D;border:1px solid #2A2A2A;padding:14px;border-radius:4px;margin-bottom:10px;}
+  .archivo-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;}
+  .archivo-tipo{font-family:'Syne',sans-serif;font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;padding:2px 8px;border-radius:2px;}
+  .archivo-tipo.wa{background:#25D36620;color:#25D366;border:1px solid #25D366;}
+  .archivo-tipo.email{background:var(--azul)20;color:var(--azul);border:1px solid var(--azul);}
+  .archivo-fecha{font-size:10px;color:var(--texto-sec);}
+  .archivo-count{font-size:11px;color:var(--acento);}
+  .archivo-msg{font-size:11px;color:var(--texto-sec);margin-top:6px;line-height:1.5;white-space:pre-line;max-height:60px;overflow:hidden;}
+  .rubros-wrap{background:#111;border:1px solid #2A2A2A;border-radius:4px;padding:14px;margin-bottom:16px;}
+  .rubros-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-bottom:12px;}
+  .rubro-chip{display:flex;align-items:center;gap:7px;background:#0A0A0A;border:1px solid #222;border-radius:4px;padding:8px 10px;cursor:pointer;transition:border-color .15s;}
+  .rubro-chip:hover{border-color:var(--acento);}
+  .rubro-chip input{cursor:pointer;}
+  .rubro-chip span{font-size:12px;color:#DDD9D0;}
+  .rubro-personalizado{display:flex;gap:8px;}
+  .rubro-personalizado input{flex:1;}
+  .chips-agregados{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  .chip-custom{display:flex;align-items:center;gap:6px;background:#0A0A0A;border:1px solid var(--acento);border-radius:14px;padding:4px 10px 4px 12px;font-size:11px;color:var(--acento);}
+  .chip-custom button{background:none;border:none;color:var(--acento);cursor:pointer;font-size:13px;line-height:1;padding:0;}
+  @media(max-width:600px){.form-grid{grid-template-columns:1fr;}}
+</style>
+</head>
+<body>
+<header>
+  <div class="logo">M-AR</div>
+  <div class="header-info">
+    <h1>Base de Datos Comercial</h1>
+    <p>M-AR & Asociados · Google Maps · Páginas Amarillas · IA · Argentina</p>
+  </div>
+</header>
 
-const http = require('http');
-const fs = require('fs');
-const path = require('path');
+<div class="tabs">
+  <button class="tab activo" onclick="cambiarTab('busqueda')">🔍 Buscar</button>
+  <button class="tab" onclick="cambiarTab('contacto')">📤 Contactar</button>
+  <button class="tab" onclick="cambiarTab('archivo')">🗄️ Archivo</button>
+  <button class="tab" onclick="cambiarTab('plantillas')">✉️ Plantillas</button>
+</div>
 
-const PORT = process.env.PORT || 3000;
-const MAPS_KEY = process.env.GOOGLE_MAPS_API_KEY;
+<!-- BÚSQUEDA -->
+<div class="tab-content activo" id="tab-busqueda">
+  <div class="aviso">
+    <strong>✅ 3 fuentes disponibles:</strong> Google Maps (datos reales, requiere crédito), Páginas Amarillas (gratis, vía fichas públicas) e IA (estimados, gratis). Elegí abajo.
+  </div>
+  <div class="form-grid">
+    <div class="form-group">
+      <label>Ciudad / Zona</label>
+      <select id="ciudad">
+        <optgroup label="Buenos Aires — Oeste">
+          <option value="General Villegas" selected>General Villegas</option>
+          <option value="Trenque Lauquen">Trenque Lauquen</option>
+          <option value="Pehuajó">Pehuajó</option>
+          <option value="Lincoln">Lincoln</option>
+          <option value="9 de Julio">9 de Julio</option>
+          <option value="Bragado">Bragado</option>
+          <option value="Chivilcoy">Chivilcoy</option>
+          <option value="Junín">Junín</option>
+          <option value="Pergamino">Pergamino</option>
+        </optgroup>
+        <optgroup label="Buenos Aires — Centro/Sur">
+          <option value="La Plata">La Plata</option>
+          <option value="Mar del Plata">Mar del Plata</option>
+          <option value="Bahía Blanca">Bahía Blanca</option>
+          <option value="Tandil">Tandil</option>
+          <option value="Olavarría">Olavarría</option>
+          <option value="Azul">Azul</option>
+          <option value="Necochea">Necochea</option>
+          <option value="Tres Arroyos">Tres Arroyos</option>
+          <option value="Coronel Suárez">Coronel Suárez</option>
+        </optgroup>
+        <optgroup label="Buenos Aires — Norte/GBA">
+          <option value="Quilmes">Quilmes</option>
+          <option value="Lomas de Zamora">Lomas de Zamora</option>
+          <option value="Morón">Morón</option>
+          <option value="Tigre">Tigre</option>
+          <option value="Zárate">Zárate</option>
+          <option value="Campana">Campana</option>
+          <option value="San Nicolás">San Nicolás</option>
+          <option value="Luján">Luján</option>
+        </optgroup>
+        <optgroup label="La Pampa">
+          <option value="General Pico La Pampa">General Pico</option>
+          <option value="Santa Rosa La Pampa">Santa Rosa</option>
+          <option value="Eduardo Castex La Pampa">Eduardo Castex</option>
+          <option value="Realicó La Pampa">Realicó</option>
+          <option value="Victorica La Pampa">Victorica</option>
+        </optgroup>
+        <optgroup label="Córdoba">
+          <option value="Córdoba capital">Córdoba Capital</option>
+          <option value="Villa María Córdoba">Villa María</option>
+          <option value="Río Cuarto Córdoba">Río Cuarto</option>
+          <option value="San Francisco Córdoba">San Francisco</option>
+        </optgroup>
+        <optgroup label="Santa Fe">
+          <option value="Rosario Santa Fe">Rosario</option>
+          <option value="Santa Fe capital">Santa Fe Capital</option>
+          <option value="Rafaela Santa Fe">Rafaela</option>
+          <option value="Venado Tuerto Santa Fe">Venado Tuerto</option>
+        </optgroup>
+        <optgroup label="Otras provincias">
+          <option value="Mendoza capital">Mendoza</option>
+          <option value="Tucumán capital">Tucumán</option>
+          <option value="Salta capital">Salta</option>
+          <option value="Neuquén capital">Neuquén</option>
+          <option value="Corrientes capital">Corrientes</option>
+          <option value="Posadas Misiones">Posadas</option>
+          <option value="Resistencia Chaco">Resistencia</option>
+          <option value="San Juan capital">San Juan</option>
+          <option value="San Luis capital">San Luis</option>
+          <option value="La Rioja capital">La Rioja</option>
+          <option value="Catamarca capital">Catamarca</option>
+          <option value="Jujuy capital">Jujuy</option>
+          <option value="Formosa capital">Formosa</option>
+          <option value="Santiago del Estero capital">Santiago del Estero</option>
+          <option value="Rawson Chubut">Rawson</option>
+          <option value="Río Gallegos Santa Cruz">Río Gallegos</option>
+        </optgroup>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Cantidad (por rubro tildado)</label>
+      <select id="cantidad">
+        <option value="20">20 empresas</option>
+        <option value="40" selected>40 empresas</option>
+        <option value="60">60 empresas</option>
+        <option value="100">100 empresas</option>
+        <option value="200">200 empresas</option>
+        <option value="500">500 empresas (máximo, solo Maps)</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Fuente de datos</label>
+      <select id="fuente">
+        <option value="maps">Google Maps (datos reales)</option>
+        <option value="paginas_amarillas">Páginas Amarillas (gratis)</option>
+        <option value="ia">IA (datos estimados)</option>
+      </select>
+    </div>
+  </div>
 
-const MIME = {
-  '.html': 'text/html',
-  '.js': 'application/javascript',
-  '.css': 'text/css',
-  '.json': 'application/json',
-};
+  <div class="rubros-wrap">
+    <label style="font-size:10px;color:var(--texto-sec);font-family:'Syne',sans-serif;letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:10px;">Rubros a buscar (tildá uno o varios — cada uno dispara su propia búsqueda)</label>
+    <div class="rubros-grid" id="rubros-grid">
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="estudio contable" checked><span>Estudios contables</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="constructora construccion"><span>Constructoras</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="inmobiliaria"><span>Inmobiliarias</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="estudio juridico abogados"><span>Estudios jurídicos</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="supermercado comercio"><span>Comercios</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="restaurante bar gastronomia"><span>Gastronomía</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="empresa tecnologia software"><span>Tecnología</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="transporte logistica"><span>Transporte</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="agropecuaria campo"><span>Agropecuario</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="clinica medico salud"><span>Salud</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="educacion colegio instituto"><span>Educación</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="ferreteria materiales"><span>Ferreterías</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="hotel turismo"><span>Turismo</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="banco financiera"><span>Finanzas</span></label>
+    </div>
+    <div class="rubro-personalizado">
+      <input type="text" id="rubro-custom-input" placeholder="Agregar otro rubro (ej: veterinaria, panadería...)">
+      <button class="btn btn-acento" onclick="agregarRubroCustom()" style="padding:10px 16px;">+ Agregar</button>
+    </div>
+    <div class="chips-agregados" id="chips-agregados"></div>
+  </div>
 
-const CONTACTOS_FILE = path.join(__dirname, 'contactos-enviados.json');
-if (!fs.existsSync(CONTACTOS_FILE)) {
-  fs.writeFileSync(CONTACTOS_FILE, JSON.stringify({ whatsapp: [], email: [] }, null, 2));
+  <button class="btn btn-acento btn-full" id="btn-buscar" onclick="buscar()">🔍 Buscar empresas reales</button>
+  <div class="prog-wrap" id="prog-wrap">
+    <div class="prog-label" id="prog-label">Conectando...</div>
+    <div class="prog-bar"><div class="prog-fill" id="prog-fill"></div></div>
+  </div>
+  <div id="resultados-wrap" style="display:none;margin-top:16px;">
+    <div class="resultados-header">
+      <div class="count" id="count-label"></div>
+      <div class="acciones">
+        <button class="btn btn-verde" onclick="seleccionarTodos()">☑ Todos</button>
+        <button class="btn btn-acento" onclick="exportarCSV()">⬇ Excel</button>
+        <button class="btn btn-azul" onclick="irAContactar()">📤 Contactar →</button>
+      </div>
+    </div>
+    <div class="tabla-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th><input type="checkbox" id="chk-all" onchange="toggleTodos(this)"></th>
+            <th>#</th><th>Empresa</th><th>Rubro</th><th>Dirección</th><th>Teléfono</th><th>Web</th>
+          </tr>
+        </thead>
+        <tbody id="tabla-body"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- CONTACTAR -->
+<div class="tab-content" id="tab-contacto">
+  <div id="seleccionados-info" style="font-size:12px;color:var(--texto-sec);margin-bottom:14px;">No hay empresas seleccionadas.</div>
+
+  <div class="envio-panel" style="margin-bottom:14px;">
+    <h3>Tus datos de contacto (se usan en los mensajes)</h3>
+    <div class="form-grid" style="margin-bottom:0;">
+      <div class="form-group">
+        <label>Tu WhatsApp (sin 0 ni 15, ej: 2392446792)</label>
+        <input type="text" id="mi-telefono" placeholder="Ej: 2392446792">
+      </div>
+      <div class="form-group">
+        <label>Tu Email</label>
+        <input type="email" id="mi-email" placeholder="Ej: contacto@tuempresa.com">
+      </div>
+    </div>
+    <div class="info-box" style="margin-top:10px;margin-bottom:0;">Estos datos reemplazan el teléfono/email dentro de los mensajes de WhatsApp y Email. Útil si estás vendiendo el servicio de búsqueda de clientes a otra empresa y no querés que aparezcan tus propios datos.</div>
+  </div>
+
+  <div class="envio-panel">
+    <h3>Canal de contacto</h3>
+    <div class="envio-tabs">
+      <button class="envio-tab activo" onclick="cambiarEnvioTab('whatsapp')">💬 WhatsApp</button>
+      <button class="envio-tab" onclick="cambiarEnvioTab('email')">📧 Email</button>
+    </div>
+    <div class="envio-content activo" id="envio-whatsapp">
+      <div class="info-box"><strong>WhatsApp Web:</strong> Abre una conversación por cada empresa. Las respuestas llegan al número que pusiste arriba. Máximo 10 por vez recomendado.</div>
+      <div class="form-group" style="margin-bottom:10px;">
+        <label>Mensaje</label>
+        <textarea id="msg-wa">Hola [NOMBRE] 👋, soy Marcos de M-AR & Asociados.
+
+🏗️ Te quiero contar sobre MARTOKEN: inversión inmobiliaria real, tokenizada, desde USD 100 — sin intervención estatal, con respaldo en activos físicos.
+
+👉 Visitá MAR-01, el proyecto activo: https://www.martoken.com.ar/mar01/
+🌐 Más info: https://www.martoken.com.ar
+
+Además, en M-AR conseguimos clientes para tu empresa mediante IA 🤖 — automatizamos la búsqueda y el primer contacto comercial.
+
+📱 [MI_TELEFONO]
+📧 [MI_EMAIL]
+
+¿Tenés unos minutos para una reunión virtual?</textarea>
+      </div>
+      <button class="btn btn-verde btn-full" onclick="enviarWhatsApp()">💬 Enviar por WhatsApp</button>
+    </div>
+    <div class="envio-content" id="envio-email">
+      <div class="info-box"><strong>Email:</strong> Copiá los emails o abrí Gmail con el mensaje listo. Las respuestas llegan al email que pusiste arriba.</div>
+      <div class="form-group" style="margin-bottom:10px;">
+        <label>Asunto</label>
+        <input type="text" id="email-asunto" value="Martoken — Inversión inmobiliaria tokenizada desde USD 100" />
+      </div>
+      <div class="form-group" style="margin-bottom:12px;">
+        <label>Mensaje</label>
+        <textarea id="email-cuerpo" rows="14">Estimados,
+
+Me comunico desde Organización M-AR & Asociados.
+
+🏗️ MARTOKEN — INVERSIÓN INMOBILIARIA TOKENIZADA
+Acceso a inversión en activos inmobiliarios reales desde USD 100, con respaldo físico, estructura legal privada y sin intervención estatal. Operamos sobre blockchain Polygon.
+
+👉 Visitá MAR-01, nuestro proyecto activo: https://www.martoken.com.ar/mar01/
+👉 Más información: https://www.martoken.com.ar
+
+🤖 ADEMÁS: CONSEGUIMOS CLIENTES PARA TU EMPRESA MEDIANTE IA
+En paralelo, desde M-AR implementamos sistemas de prospección comercial automatizada que generan contactos calificados para tu negocio, alcanzándolos por WhatsApp y email en todo el país.
+
+¿Coordinamos una reunión virtual de 15 minutos?
+
+Saludos,
+Marcos Reynoso
+Organización M-AR & Asociados
+📱 [MI_TELEFONO]
+📧 [MI_EMAIL]</textarea>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-verde" onclick="copiarEmails()">📋 Copiar emails</button>
+        <button class="btn btn-azul" onclick="abrirGmail()">📧 Abrir Gmail</button>
+      </div>
+    </div>
+    <div id="estado-envio"></div>
+  </div>
+</div>
+
+<!-- ARCHIVO -->
+<div class="tab-content" id="tab-archivo">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+    <div style="font-family:'Syne',sans-serif;font-size:11px;color:var(--texto-sec);letter-spacing:1px;text-transform:uppercase;">Contactos enviados archivados</div>
+    <button class="btn btn-acento" onclick="cargarArchivo()" style="font-size:10px;padding:7px 14px;">🔄 Actualizar</button>
+  </div>
+  <div id="archivo-contenido">
+    <div style="text-align:center;padding:40px;color:var(--texto-sec);font-size:13px;">Cargando archivo...</div>
+  </div>
+</div>
+
+<!-- PLANTILLAS -->
+<div class="tab-content" id="tab-plantillas">
+  <div style="font-family:'Syne',sans-serif;font-size:10px;color:var(--texto-sec);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;">Plantillas listas</div>
+  <div style="background:#111;border:1px solid #2A2A2A;padding:16px;border-radius:4px;margin-bottom:10px;">
+    <div style="font-family:'Syne',sans-serif;font-size:11px;color:var(--acento);margin-bottom:8px;">💬 WhatsApp — Martoken (prioridad)</div>
+    <div style="font-size:12px;color:#DDD9D0;line-height:1.7;margin-bottom:12px;white-space:pre-line;">Hola [NOMBRE] 👋, soy Marcos de M-AR & Asociados.
+
+🏗️ Te quiero contar sobre MARTOKEN: inversión inmobiliaria real, tokenizada, desde USD 100.
+
+👉 Visitá MAR-01: https://www.martoken.com.ar/mar01/
+🌐 https://www.martoken.com.ar
+
+📱 [MI_TELEFONO]
+📧 [MI_EMAIL]</div>
+    <button class="btn btn-verde" style="font-size:10px;padding:6px 12px;" onclick="usarPlantilla('wa',this.previousElementSibling.textContent)">Usar en WhatsApp</button>
+  </div>
+  <div style="background:#111;border:1px solid #2A2A2A;padding:16px;border-radius:4px;margin-bottom:10px;">
+    <div style="font-family:'Syne',sans-serif;font-size:11px;color:var(--verde);margin-bottom:8px;">💬 WhatsApp — Conseguimos clientes con IA</div>
+    <div style="font-size:12px;color:#DDD9D0;line-height:1.7;margin-bottom:12px;white-space:pre-line;">Hola [NOMBRE] 👋, soy Marcos de M-AR & Asociados.
+
+Conseguimos clientes para tu empresa mediante IA 🤖 — automatizamos la búsqueda y el primer contacto comercial.
+
+📱 [MI_TELEFONO]
+📧 [MI_EMAIL]</div>
+    <button class="btn btn-acento" style="font-size:10px;padding:6px 12px;" onclick="usarPlantilla('wa',this.previousElementSibling.textContent)">Usar en WhatsApp</button>
+  </div>
+</div>
+
+<script>
+let empresasData=[], seleccionadas=[];
+let rubrosCustom=[]; // rubros agregados a mano, además de los checkboxes fijos
+
+function cambiarTab(t){
+  document.querySelectorAll('.tab').forEach((x,i)=>x.classList.toggle('activo',['busqueda','contacto','archivo','plantillas'][i]===t));
+  document.querySelectorAll('.tab-content').forEach(x=>x.classList.remove('activo'));
+  document.getElementById('tab-'+t).classList.add('activo');
+  if(t==='archivo') cargarArchivo();
 }
 
-// ═══════════════════════════════════════════════════════════
-// ROTACIÓN DE KEYS GROQ
-// ═══════════════════════════════════════════════════════════
-
-const GROQ_KEYS = [
-  process.env.GROQ_API_KEY,
-  process.env.GROQ_API_KEY_2,
-  process.env.GROQ_API_KEY_3,
-  process.env.GROQ_API_KEY_4,
-].filter(Boolean);
-
-let keyIndex = 0;
-
-function nextGroqKey() {
-  const key = GROQ_KEYS[keyIndex % GROQ_KEYS.length];
-  keyIndex++;
-  return key;
+function cambiarEnvioTab(t){
+  document.querySelectorAll('.envio-tab').forEach((x,i)=>x.classList.toggle('activo',['whatsapp','email'][i]===t));
+  document.querySelectorAll('.envio-content').forEach(x=>x.classList.remove('activo'));
+  document.getElementById('envio-'+t).classList.add('activo');
 }
 
-async function llamarGroq(payload, intentos = GROQ_KEYS.length) {
-  if (GROQ_KEYS.length === 0) throw new Error('No hay ninguna GROQ_API_KEY configurada.');
-  for (let i = 0; i < intentos; i++) {
-    const key = nextGroqKey();
-    try {
-      const r = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
-        body: JSON.stringify(payload),
+function agregarRubroCustom(){
+  const input=document.getElementById('rubro-custom-input');
+  const val=input.value.trim();
+  if(!val) return;
+  if(rubrosCustom.includes(val)){input.value='';return;}
+  rubrosCustom.push(val);
+  input.value='';
+  renderChipsCustom();
+}
+
+function quitarRubroCustom(val){
+  rubrosCustom=rubrosCustom.filter(r=>r!==val);
+  renderChipsCustom();
+}
+
+function renderChipsCustom(){
+  const cont=document.getElementById('chips-agregados');
+  cont.innerHTML=rubrosCustom.map(r=>`<span class="chip-custom">${r}<button onclick="quitarRubroCustom('${r.replace(/'/g,"\\'")}')">×</button></span>`).join('');
+}
+
+function obtenerRubrosSeleccionados(){
+  const fijos=[...document.querySelectorAll('.chk-rubro:checked')].map(c=>c.value);
+  return [...fijos, ...rubrosCustom];
+}
+
+async function buscar(){
+  const ciudad=document.getElementById('ciudad').value;
+  const cantidad=parseInt(document.getElementById('cantidad').value);
+  const fuente=document.getElementById('fuente').value;
+  const rubros=obtenerRubrosSeleccionados();
+
+  if(!rubros.length){alert('Tildá al menos un rubro, o agregá uno personalizado.');return;}
+
+  document.getElementById('btn-buscar').disabled=true;
+  document.getElementById('prog-wrap').style.display='block';
+  document.getElementById('resultados-wrap').style.display='none';
+  empresasData=[];
+
+  for(let i=0;i<rubros.length;i++){
+    const rubro=rubros[i];
+    document.getElementById('prog-label').textContent=`Buscando "${rubro}" (${i+1}/${rubros.length}) en ${ciudad}...`;
+    document.getElementById('prog-fill').style.width=`${Math.round(((i+0.5)/rubros.length)*100)}%`;
+    await buscarBackend(ciudad,rubro,cantidad,fuente);
+  }
+
+  document.getElementById('prog-fill').style.width='100%';
+  mostrarTabla(ciudad);
+  document.getElementById('btn-buscar').disabled=false;
+  document.getElementById('prog-wrap').style.display='none';
+}
+
+async function buscarBackend(ciudad,rubro,cantidad,fuente){
+  try{
+    const res=await fetch('/buscar-empresas',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({query:rubro,location:ciudad+' Argentina',cantidad,fuente})
+    });
+    const data=await res.json();
+    if(data.empresas){
+      // Evita duplicados exactos entre rubros ya buscados.
+      // OJO: antes la clave era nombre+telefono, y como muchas empresas de
+      // Páginas Amarillas no tienen teléfono, dos empresas distintas con
+      // teléfono vacío podían "chocar" y una se descartaba por error,
+      // mezclando datos. Ahora la clave incluye también dirección y rubro,
+      // así una clave vacía nunca coincide con otra por casualidad.
+      const claveDe=e=>[e.nombre||'',e.telefono||'',e.direccion||'',e.rubro||''].join('|').toLowerCase();
+      const existentes=new Set(empresasData.map(claveDe));
+      data.empresas.forEach(e=>{
+        const key=claveDe(e);
+        if(!existentes.has(key)){empresasData.push({...e,_fuente:data.fuenteUsada});existentes.add(key);}
       });
-      if (r.status === 429) continue;
-      const d = await r.json();
-      return d;
-    } catch (e) {
-      if (i === intentos - 1) throw e;
     }
+  }catch(e){
+    console.error(e);
+    document.getElementById('prog-label').textContent=`Error buscando "${rubro}". Sigo con el resto...`;
   }
-  throw new Error('Todas las keys de Groq están al límite. Intentá en unos minutos.');
 }
 
-// ═══════════════════════════════════════════════════════════
-// MÓDULO IA — genera empresas realistas con Groq
-// ═══════════════════════════════════════════════════════════
-
-const SYSTEM_IA = `Sos un generador de bases de datos comerciales argentinas. 
-Generás empresas REALES y VEROSÍMILES en JSON puro, sin texto adicional, sin markdown.
-Formato exacto:
-{"empresas":[
-  {"nombre":"Nombre Real SRL","rubro":"Contabilidad","direccion":"Av. San Martín 456, ciudad, Buenos Aires","telefono":"02396-421234","email":"info@nombrereal.com.ar","web":"www.nombrereal.com.ar"},
-  ...
-]}
-REGLAS:
-- Nombres de empresas argentinas reales y creíbles para la zona
-- Teléfonos con código de área correcto para la ciudad
-- Emails con dominios .com.ar cuando posible
-- Webs sin https://, solo el dominio
-- Algunos sin email ni web (realismo)
-- Direcciones con calles y números verosímiles de esa ciudad
-- Solo JSON, nada más`;
-
-async function generarEmpresasIA(ciudad, rubro, cantidad) {
-  const lote = 10;
-  const tandas = Math.ceil(cantidad / lote);
-  const empresas = [];
-
-  for (let i = 0; i < tandas; i++) {
-    const n = Math.min(lote, cantidad - i * lote);
-    const prompt = `Generá exactamente ${n} empresas del rubro "${rubro}" en ${ciudad}, Argentina.
-Lote ${i + 1} de ${tandas}. Empresas diferentes a las anteriores.
-Códigos de área típicos de ${ciudad}. Devolvé solo el JSON.`;
-
-    try {
-      const d = await llamarGroq({
-        model: 'llama-3.3-70b-versatile',
-        max_tokens: 2000,
-        temperature: 0.7,
-        messages: [
-          { role: 'system', content: SYSTEM_IA },
-          { role: 'user', content: prompt }
-        ]
-      });
-      const text = d.choices?.[0]?.message?.content || '';
-      const clean = text.replace(/```json|```/g, '').trim();
-      const match = clean.match(/\{[\s\S]*\}/);
-      if (match) {
-        const parsed = JSON.parse(match[0]);
-        if (parsed.empresas) empresas.push(...parsed.empresas);
-      }
-    } catch (e) {
-      console.error('Error IA lote', i, e.message);
-    }
-
-    if (i < tandas - 1) await new Promise(r => setTimeout(r, 300));
-  }
-
-  return empresas.slice(0, cantidad);
+function badgeFuente(f){
+  if(!f) return '';
+  if(f.includes('maps')) return '<span class="badge-fuente maps">Maps</span>';
+  if(f.includes('paginas_amarillas')) return '<span class="badge-fuente pa">P.Amarillas</span>';
+  return '<span class="badge-fuente ia">IA</span>';
 }
 
-// ═══════════════════════════════════════════════════════════
-// MÓDULO GOOGLE MAPS — hasta 500 resultados con paginación
-// ═══════════════════════════════════════════════════════════
-
-async function buscarGoogleMaps(query, location, cantidad) {
-  let empresas = [];
-  let pageToken = null;
-  const max = Math.min(cantidad, 500); // hasta 500
-
-  while (empresas.length < max) {
-    let url = `https://maps.googleapis.com/maps/api/place/textsearch/json?query=${encodeURIComponent(query + ' ' + location)}&key=${MAPS_KEY}&language=es`;
-    if (pageToken) url += `&pagetoken=${pageToken}`;
-
-    const r = await fetch(url);
-    const d = await r.json();
-
-    if (d.status === 'REQUEST_DENIED' || d.status === 'INVALID_REQUEST') {
-      throw new Error('MAPS_DENIED');
-    }
-
-    if (d.results) {
-      for (const p of d.results) {
-        if (empresas.length >= max) break;
-        const detUrl = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${p.place_id}&fields=name,formatted_address,formatted_phone_number,website,types&key=${MAPS_KEY}&language=es`;
-        const detR = await fetch(detUrl);
-        const detD = await detR.json();
-        const det = detD.result || {};
-        empresas.push({
-          nombre: det.name || p.name || '',
-          rubro: query,
-          direccion: det.formatted_address || p.formatted_address || '',
-          telefono: det.formatted_phone_number || '',
-          email: '',
-          web: det.website || '',
-        });
-      }
-    }
-
-    pageToken = d.next_page_token;
-    if (!pageToken || empresas.length >= max) break;
-    // Google requiere esperar 2s antes de usar el next_page_token
-    await new Promise(r => setTimeout(r, 2000));
-  }
-
-  return empresas;
+function mostrarTabla(ciudad){
+  document.getElementById('resultados-wrap').style.display='block';
+  document.getElementById('count-label').textContent=`${empresasData.length} empresas — ${ciudad.split(' ')[0]}`;
+  const tbody=document.getElementById('tabla-body');
+  tbody.innerHTML='';
+  empresasData.forEach((e,i)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td><input type="checkbox" class="chk-empresa" value="${i}" onchange="actualizarSeleccion()"></td>
+    <td style="color:var(--texto-sec)">${i+1}</td>
+    <td><strong>${e.nombre||'-'}</strong></td>
+    <td><span class="badge">${(e.rubro||'-').substring(0,20)}</span>${badgeFuente(e._fuente)}</td>
+    <td style="font-size:11px">${e.direccion||'-'}</td>
+    <td>${e.telefono||'-'}</td>
+    <td style="font-size:11px">${e.web?'<a href="http://'+e.web+'" target="_blank">'+e.web+'</a>':'—'}</td>`;
+    tbody.appendChild(tr);
+  });
 }
 
-// ═══════════════════════════════════════════════════════════
-// MÓDULO PÁGINAS AMARILLAS — scraping real con Puppeteer
-// ═══════════════════════════════════════════════════════════
-// El sitio renderiza listado y fichas con JavaScript (Next.js),
-// así que un fetch simple no alcanza. Usamos un Chrome headless
-// (Puppeteer) que carga la página como lo haría una persona.
-//
-// Requiere que "puppeteer" esté en package.json como dependencia.
-// Si no está instalado, lo detectamos y devolvemos vacío sin romper
-// el servidor (la ruta /buscar-empresas cae a IA automáticamente).
-//
-// Tope conservador (PA_MAX) pensado para el plan Starter de Render
-// (512 MB RAM): evita quedarse sin memoria y evita que una sola
-// búsqueda tarde tanto que se corte por timeout.
+function toggleTodos(c){document.querySelectorAll('.chk-empresa').forEach(x=>x.checked=c.checked);actualizarSeleccion();}
+function seleccionarTodos(){document.querySelectorAll('.chk-empresa').forEach(x=>x.checked=true);document.getElementById('chk-all').checked=true;actualizarSeleccion();}
+function actualizarSeleccion(){seleccionadas=[];document.querySelectorAll('.chk-empresa:checked').forEach(c=>seleccionadas.push(empresasData[parseInt(c.value)]));}
 
-let puppeteer = null;
-try {
-  puppeteer = require('puppeteer');
-} catch {
-  console.warn('⚠️  Puppeteer no está instalado (falta en package.json). La fuente "Páginas Amarillas" usará el respaldo de IA.');
+function irAContactar(){
+  actualizarSeleccion();
+  if(!seleccionadas.length){alert('Seleccioná al menos una empresa');return;}
+  document.getElementById('seleccionados-info').textContent=`✅ ${seleccionadas.length} empresa(s) seleccionada(s).`;
+  cambiarTab('contacto');
 }
 
-const PA_BASE = 'https://www.paginasamarillas.com.ar';
-const PA_MAX_POR_BUSQUEDA = 30; // tope de seguridad — plan Starter 512MB
-const PA_CONCURRENCY = 2;       // pestañas simultáneas dentro del mismo navegador
-
-const PUPPETEER_ARGS = [
-  '--no-sandbox',
-  '--disable-setuid-sandbox',
-  '--disable-dev-shm-usage',
-  '--disable-gpu',
-  '--disable-extensions',
-  '--single-process',
-  '--no-zygote',
-];
-
-function slugify(texto) {
-  return String(texto)
-    .toLowerCase()
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // sin tildes
-    .replace(/[^a-z0-9\s-]/g, '')
-    .trim()
-    .replace(/\s+/g, '-');
+function obtenerMisDatos(){
+  const tel=document.getElementById('mi-telefono').value.trim() || '—';
+  const mail=document.getElementById('mi-email').value.trim() || '—';
+  return {tel,mail};
 }
 
-function mapearResultadoPA(r, rubro, ciudadFallback) {
-  if (!r) return null;
-
-  // Teléfono: preferimos el formato lindo "(011) 4740 - 2174"
-  const telefono =
-    r.mainPhone?.phoneToShow ||
-    r.allPhones?.[0]?.phoneToShow ||
-    r.mainPhone?.number ||
-    r.allPhones?.[0]?.number || '';
-
-  const email = (Array.isArray(r.emails) && r.emails[0]) ? r.emails[0] : '';
-  const web = r.contactMap?.WEB?.[0] || '';
-  const whatsapp = r.contactMap?.WHATSAPP?.[0] || '';
-
-  const ma = r.mainAddress || {};
-  const calle = [ma.streetName, ma.streetNumber].filter(Boolean).join(' ').trim();
-  const localidad = ma.localityToShow || ma.localityForSEO || '';
-  const direccion = [calle, localidad].filter(Boolean).join(', ') || ciudadFallback;
-
-  if (!telefono && !email && !web && !calle) return null;
-
-  return {
-    nombre: r.name || 'Sin nombre',
-    rubro,
-    telefono: telefono || '',
-    direccion,
-    email: email || '',
-    web: web || '',
-    whatsapp: whatsapp || '',
-  };
+function aplicarMisDatos(texto){
+  const {tel,mail}=obtenerMisDatos();
+  return texto.replace(/\[MI_TELEFONO\]/g,tel).replace(/\[MI_EMAIL\]/g,mail);
 }
 
-async function buscarPaginasAmarillas(rubro, ciudad, cantidad) {
-  if (!puppeteer) return []; // no instalado todavía → ruta llamadora cae a IA
-
-  const max = Math.min(cantidad, PA_MAX_POR_BUSQUEDA);
-  const rubroSlug = slugify(rubro);
-  const ciudadSlug = slugify(ciudad);
-  const listadoUrl = `${PA_BASE}/b/${rubroSlug}/${ciudadSlug}`;
-
-  // Para filtrar por localidad: normalizamos la ciudad buscada
-  const ciudadNorm = ciudadSlug.replace(/-/g, ' ');
-
-  let browser;
-  let empresas = [];
-  try {
-    browser = await puppeteer.launch({ headless: true, args: PUPPETEER_ARGS });
-
-    const listPage = await browser.newPage();
-    await listPage.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36');
-    await listPage.setRequestInterception(true);
-    listPage.on('request', (req) => {
-      if (['image', 'font', 'stylesheet', 'media'].includes(req.resourceType())) req.abort();
-      else req.continue();
+async function guardarContactos(tipo,contactos,mensaje){
+  try{
+    await fetch('/guardar-contactos',{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({tipo,contactos,mensaje,fecha:new Date().toLocaleString('es-AR')})
     });
+  }catch(e){console.error('Error guardando:',e);}
+}
 
-    await listPage.goto(listadoUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+function esCelularArgentino(telCrudo){
+  // Detecta si un teléfono argentino es celular (WhatsApp real) o fijo.
+  // Regla práctica: en Argentina los celulares, al marcarlos completos con
+  // código de país, llevan un "9" después del 54 (formato 549...). Los
+  // teléfonos fijos de Páginas Amarillas vienen como "(03388) 42-2197" o
+  // "(011) 4740-2174", que son DDN+número de línea, sin ese 9. No podemos
+  // saber con 100% de certeza si un fijo tiene WhatsApp Business, así que
+  // por seguridad NO lo tratamos como WhatsApp salvo que el dato venga
+  // explícitamente de un campo de whatsapp (ver "whatsapp" del backend de
+  // Páginas Amarillas, que es el dato confiable para esto).
+  const solo=String(telCrudo||'').replace(/\D/g,'');
+  return solo.length>=10; // mínimo razonable para considerar intento de envío
+}
 
-    // Páginas Amarillas es Next.js: el listado completo viene en __NEXT_DATA__,
-    // con teléfono, email, web y localidad de cada empresa. Lo leemos de una
-    // sola vez (más rápido y liviano que entrar ficha por ficha).
-    const datos = await listPage.evaluate(() => {
-      const el = document.getElementById('__NEXT_DATA__');
-      if (!el) return null;
-      try { return JSON.parse(el.textContent); } catch { return null; }
-    }).catch(() => null);
+function enviarWhatsApp(){
+  actualizarSeleccion();
+  if(!seleccionadas.length){alert('No hay empresas seleccionadas');return;}
+  const msgBase=aplicarMisDatos(document.getElementById('msg-wa').value);
+  const estado=document.getElementById('estado-envio');
 
-    await listPage.close().catch(() => {});
-
-    const resultados = datos?.props?.pageProps?.results || [];
-
-    for (const r of resultados) {
-      if (empresas.length >= max) break;
-
-      // Filtro de localidad: descartamos empresas de otras ciudades
-      // (Páginas Amarillas a veces mezcla resultados de otras localidades)
-      const ma = r.mainAddress || {};
-      const locEmpresa = [ma.localityForSEO, ma.localityToShow, ma.addressLocality]
-        .filter(Boolean).join(' ')
-        .toLowerCase()
-        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-
-      // Exigimos TODAS las palabras significativas de la ciudad buscada,
-      // no solo una. Con .some() alcanzaba con que matchee "general" para
-      // colarse "General Pacheco" en una búsqueda de "General Villegas".
-      // Con .every() exigimos que también aparezca "villegas".
-      const palabrasCiudad = ciudadNorm.split(' ').filter(p => p.length > 3);
-      const coincide = palabrasCiudad.length === 0
-        ? true
-        : palabrasCiudad.every(p => locEmpresa.includes(p));
-
-      if (!coincide) continue;
-
-      const empresa = mapearResultadoPA(r, rubro, ciudad);
-      if (empresa) empresas.push(empresa);
+  // Preferimos el WhatsApp confirmado por Páginas Amarillas (campo "whatsapp",
+  // ej. de contactMap.WHATSAPP) sobre el teléfono general, que puede ser un
+  // fijo sin WhatsApp. Si no hay whatsapp confirmado, usamos el teléfono pero
+  // avisamos al final cuántos eran de origen incierto.
+  const aEnviar=[];
+  let inciertos=0;
+  seleccionadas.forEach(e=>{
+    const waConfirmado=(e.whatsapp||'').replace(/\D/g,'');
+    if(waConfirmado&&waConfirmado.length>=10){
+      aEnviar.push({...e,_telEnvio:waConfirmado});
+    }else{
+      const tel=(e.telefono||'').replace(/\D/g,'');
+      if(esCelularArgentino(tel)){aEnviar.push({...e,_telEnvio:tel});inciertos++;}
     }
-  } catch (e) {
-    console.error('Error Puppeteer Páginas Amarillas:', e.message);
-  } finally {
-    if (browser) await browser.close().catch(() => {});
-  }
+  });
 
-  return empresas.slice(0, max);
-}
+  if(!aEnviar.length){alert('Ninguna empresa seleccionada tiene un teléfono usable para WhatsApp.');return;}
 
-// ═══════════════════════════════════════════════════════════
-// ENRIQUECIMIENTO WEB (común a las 3 fuentes)
-// ═══════════════════════════════════════════════════════════
+  guardarContactos('whatsapp',aEnviar.map(e=>({nombre:e.nombre,telefono:e._telEnvio})),msgBase);
 
-const UA = 'Mozilla/5.0 (compatible; MAR-LeadBot/1.0)';
-const TIMEOUT_MS = 8000;
-const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-const JUNK_EMAIL = /(noreply|no-reply|mailer|sentry|wixpress|example\.|tudominio|yourdomain|sitename|\.(png|jpg|gif|svg|css|js)$)/i;
-
-function normalizeUrl(raw) {
-  if (!raw) return null;
-  let u = String(raw).trim();
-  if (!/^https?:\/\//i.test(u)) u = 'https://' + u;
-  try { return new URL(u).toString(); } catch { return null; }
-}
-
-async function fetchHtml(url) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(url, { headers: { 'User-Agent': UA, Accept: 'text/html' }, signal: controller.signal, redirect: 'follow' });
-    if (!res.ok) return null;
-    const ct = res.headers.get('content-type') || '';
-    if (!ct.includes('text/html')) return null;
-    const buf = await res.arrayBuffer();
-    if (buf.byteLength > 1_500_000) return null;
-    return Buffer.from(buf).toString('utf8');
-  } catch { return null; }
-  finally { clearTimeout(timer); }
-}
-
-function extractEmails(html) {
-  if (!html) return [];
-  let t = html.replace(/\s*[\[\(]\s*(?:at|arroba)\s*[\]\)]\s*/gi, '@').replace(/\s*[\[\(]\s*(?:dot|punto)\s*[\]\)]\s*/gi, '.');
-  const mailtos = [...(t.matchAll(/href="mailto:([^"?]+)/gi))].map(m => m[1].toLowerCase());
-  const plain = (t.match(EMAIL_RE) || []).map(e => e.toLowerCase());
-  return [...new Set([...mailtos, ...plain])].filter(e => !JUNK_EMAIL.test(e));
-}
-
-function extractWhatsApp(html) {
-  if (!html) return [];
-  const nums = new Set();
-  [...(html.matchAll(/(?:wa\.me|api\.whatsapp\.com\/send[?&]phone=)[\/?]?(\d{8,15})/gi))].forEach(m => nums.add('+' + m[1]));
-  return [...nums];
-}
-
-function extractPhones(html) {
-  if (!html) return [];
-  return [...new Set([...(html.matchAll(/href="tel:([^"]+)"/gi))].map(m => m[1].replace(/[^\d+]/g, '')))].filter(p => p.replace(/\D/g, '').length >= 7);
-}
-
-function findContactLinks(html, baseUrl) {
-  if (!html) return [];
-  const links = new Set();
-  for (const m of html.matchAll(/href="([^"]+)"/gi)) {
-    if (/contact|contacto|nosotros|about|quienes/i.test(m[1])) {
-      try { links.add(new URL(m[1], baseUrl).toString()); } catch {}
+  let i=0;
+  function abrir(){
+    if(i>=aEnviar.length){
+      estado.textContent=`✅ ${aEnviar.length} conversaciones abiertas.`+(inciertos?` (${inciertos} con teléfono fijo, sin confirmar WhatsApp — revisá antes de mandar)`:'');
+      return;
     }
+    const e=aEnviar[i];
+    const tel=e._telEnvio;
+    const num=tel.length===10?'549'+tel:(tel.startsWith('54')?tel:'54'+tel);
+    window.open(`https://wa.me/${num}?text=${encodeURIComponent(msgBase.replace(/\[NOMBRE\]/g,e.nombre||''))}`, '_blank');
+    estado.textContent=`Enviando ${i+1}/${aEnviar.length}: ${e.nombre}...`;
+    i++;setTimeout(abrir,2500);
   }
-  return [...links].slice(0, 2);
+  abrir();
 }
 
-async function enrichEmpresa(empresa) {
-  const url = normalizeUrl(empresa.web);
-  const result = { ...empresa, emailsWeb: empresa.email ? [empresa.email] : [], whatsappWeb: [], phonesWeb: [], webActiva: false };
-  if (!url) return result;
-  const homeHtml = await fetchHtml(url);
-  if (!homeHtml) return result;
-  result.webActiva = true;
-  const emails = extractEmails(homeHtml);
-  emails.forEach(e => { if (!result.emailsWeb.includes(e)) result.emailsWeb.push(e); });
-  result.whatsappWeb = extractWhatsApp(homeHtml);
-  result.phonesWeb = extractPhones(homeHtml);
-  for (const link of findContactLinks(homeHtml, url)) {
-    const html2 = await fetchHtml(link);
-    if (!html2) continue;
-    extractEmails(html2).forEach(e => { if (!result.emailsWeb.includes(e)) result.emailsWeb.push(e); });
-    extractWhatsApp(html2).forEach(w => { if (!result.whatsappWeb.includes(w)) result.whatsappWeb.push(w); });
-    extractPhones(html2).forEach(p => { if (!result.phonesWeb.includes(p)) result.phonesWeb.push(p); });
-  }
-  return result;
+function copiarEmails(){
+  actualizarSeleccion();
+  const emails=seleccionadas.filter(e=>e.email).map(e=>e.email).join(', ');
+  if(!emails){alert('Ninguna empresa tiene email registrado');return;}
+  navigator.clipboard.writeText(emails).then(()=>{
+    document.getElementById('estado-envio').textContent=`✅ ${seleccionadas.filter(e=>e.email).length} emails copiados.`;
+    guardarContactos('email',seleccionadas.filter(e=>e.email).map(e=>({nombre:e.nombre,email:e.email})),aplicarMisDatos(document.getElementById('email-cuerpo').value));
+  });
 }
 
-function scoreEmpresa(e) {
-  let score = 0;
-  if (e.emailsWeb?.length) score += 35;
-  if (e.whatsappWeb?.length) score += 30;
-  if (e.phonesWeb?.length || e.telefono) score += 15;
-  if (e.webActiva) score += 10;
-  if ((e.emailsWeb?.length || 0) + (e.whatsappWeb?.length || 0) >= 2) score += 10;
-  return { ...e, score: Math.min(100, score), tier: score >= 70 ? 'A' : score >= 45 ? 'B' : 'C' };
+function abrirGmail(){
+  actualizarSeleccion();
+  const emails=seleccionadas.filter(e=>e.email).map(e=>e.email).join(',');
+  const asunto=encodeURIComponent(document.getElementById('email-asunto').value);
+  const cuerpo=encodeURIComponent(aplicarMisDatos(document.getElementById('email-cuerpo').value));
+  if(!emails){alert('Ninguna empresa tiene email');return;}
+  guardarContactos('email',seleccionadas.filter(e=>e.email).map(e=>({nombre:e.nombre,email:e.email})),aplicarMisDatos(document.getElementById('email-cuerpo').value));
+  window.open(`https://mail.google.com/mail/?view=cm&to=${emails}&su=${asunto}&body=${cuerpo}`,'_blank');
 }
 
-async function enrichBatch(empresas, concurrency = 3) {
-  const out = [];
-  for (let i = 0; i < empresas.length; i += concurrency) {
-    const enriched = await Promise.all(empresas.slice(i, i + concurrency).map(enrichEmpresa));
-    out.push(...enriched);
+async function cargarArchivo(){
+  const cont=document.getElementById('archivo-contenido');
+  try{
+    const res=await fetch('/ver-contactos');
+    const data=await res.json();
+    let html='';
+    const todos=[
+      ...(data.whatsapp||[]).map(x=>({...x,tipo:'wa'})),
+      ...(data.email||[]).map(x=>({...x,tipo:'email'}))
+    ].sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
+
+    if(!todos.length){cont.innerHTML='<div style="text-align:center;padding:40px;color:var(--texto-sec)">No hay contactos archivados aún.</div>';return;}
+
+    todos.forEach(item=>{
+      html+=`<div class="archivo-item">
+        <div class="archivo-header">
+          <div>
+            <span class="archivo-tipo ${item.tipo}">${item.tipo==='wa'?'💬 WhatsApp':'📧 Email'}</span>
+            <span class="archivo-count" style="margin-left:10px">${item.contactos?.length||0} contactos</span>
+          </div>
+          <div class="archivo-fecha">${item.fecha}</div>
+        </div>
+        <div class="archivo-msg">${item.mensaje?.substring(0,150)}...</div>
+      </div>`;
+    });
+    cont.innerHTML=html;
+  }catch(e){
+    cont.innerHTML='<div style="text-align:center;padding:40px;color:var(--texto-sec)">Error cargando archivo.</div>';
   }
-  return out.map(scoreEmpresa).sort((a, b) => b.score - a.score);
 }
 
-// ═══════════════════════════════════════════════════════════
-// SERVIDOR HTTP
-// ═══════════════════════════════════════════════════════════
+function usarPlantilla(canal,texto){
+  if(canal==='wa'){document.getElementById('msg-wa').value=texto.trim();cambiarTab('contacto');cambiarEnvioTab('whatsapp');}
+  else{document.getElementById('email-cuerpo').value=texto.trim();cambiarTab('contacto');cambiarEnvioTab('email');}
+}
 
-const server = http.createServer(async (req, res) => {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-  if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
-
-  // ── CHAT (Groq con rotación) ──────────────────────────────
-  if (req.method === 'POST' && req.url === '/chat') {
-    let body = '';
-    req.on('data', c => body += c);
-    req.on('end', async () => {
-      try {
-        const { system, messages } = JSON.parse(body);
-        const d = await llamarGroq({
-          model: 'llama-3.3-70b-versatile',
-          max_tokens: 1000,
-          messages: [{ role: 'system', content: system }, ...messages]
-        });
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ text: d.choices?.[0]?.message?.content || 'Error' }));
-      } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
-    });
-    return;
-  }
-
-  // ── BUSCAR EMPRESAS (Maps | Páginas Amarillas | IA) ───────
-  if (req.method === 'POST' && req.url === '/buscar-empresas') {
-    let body = '';
-    req.on('data', c => body += c);
-    req.on('end', async () => {
-      try {
-        const { query, location, cantidad, fuente } = JSON.parse(body);
-        const ciudadLimpia = location.replace(' Argentina', '');
-        let empresas = [];
-        let fuenteUsada = 'ia';
-
-        if (fuente === 'maps' && MAPS_KEY) {
-          try {
-            empresas = await buscarGoogleMaps(query, location, cantidad);
-            fuenteUsada = 'maps';
-          } catch (e) {
-            if (e.message === 'MAPS_DENIED') {
-              empresas = await generarEmpresasIA(ciudadLimpia, query, cantidad);
-              fuenteUsada = 'ia_fallback';
-            } else throw e;
-          }
-        } else if (fuente === 'paginas_amarillas') {
-          empresas = await buscarPaginasAmarillas(query, ciudadLimpia, cantidad);
-          if (empresas.length) {
-            fuenteUsada = 'paginas_amarillas';
-          } else {
-            // El listado no se pudo leer (render client-side) → fallback a IA
-            empresas = await generarEmpresasIA(ciudadLimpia, query, cantidad);
-            fuenteUsada = 'ia_fallback_pa';
-          }
-        } else {
-          empresas = await generarEmpresasIA(ciudadLimpia, query, cantidad);
-          fuenteUsada = 'ia';
-        }
-
-        const leads = await enrichBatch(empresas, 3);
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          empresas: leads, fuenteUsada,
-          resumen: { total: leads.length, A: leads.filter(l => l.tier === 'A').length, B: leads.filter(l => l.tier === 'B').length, C: leads.filter(l => l.tier === 'C').length }
-        }));
-      } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
-    });
-    return;
-  }
-
-  // ── GUARDAR CONTACTOS ────────────────────────────────────
-  if (req.method === 'POST' && req.url === '/guardar-contactos') {
-    let body = '';
-    req.on('data', c => body += c);
-    req.on('end', () => {
-      try {
-        const { tipo, contactos, mensaje, fecha } = JSON.parse(body);
-        const data = JSON.parse(fs.readFileSync(CONTACTOS_FILE, 'utf8'));
-        data[tipo] = data[tipo] || [];
-        data[tipo].push({ fecha, mensaje, contactos });
-        fs.writeFileSync(CONTACTOS_FILE, JSON.stringify(data, null, 2));
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ ok: true }));
-      } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
-    });
-    return;
-  }
-
-  // ── VER CONTACTOS ────────────────────────────────────────
-  if (req.method === 'GET' && req.url === '/ver-contactos') {
-    try {
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(fs.readFileSync(CONTACTOS_FILE, 'utf8'));
-    } catch (e) { res.writeHead(500); res.end(JSON.stringify({ error: e.message })); }
-    return;
-  }
-
-  // ── ARCHIVOS ESTÁTICOS ───────────────────────────────────
-  if (req.method === 'GET') {
-    let urlPath = req.url.split('?')[0];
-    let filePath = (urlPath === '/' || urlPath === '/index.html')
-      ? path.join(__dirname, 'index.html')
-      : path.join(__dirname, urlPath);
-    if (!path.extname(filePath)) filePath += '.html';
-    fs.readFile(filePath, (err, data) => {
-      if (err) { res.writeHead(404); res.end('404'); return; }
-      res.writeHead(200, { 'Content-Type': MIME[path.extname(filePath)] || 'text/plain' });
-      res.end(data);
-    });
-    return;
-  }
-
-  res.writeHead(404); res.end('Not found');
-});
-
-server.listen(PORT, () => console.log(`M-AR buscador de empresas en puerto ${PORT} — ${GROQ_KEYS.length} keys Groq cargadas`));
-
-// Búsquedas con Puppeteer pueden tardar más que una request normal.
-// Subimos estos valores para que no se corten antes de tiempo.
-server.keepAliveTimeout = 120000;
-server.headersTimeout = 120000;
+function exportarCSV(){
+  if(!empresasData.length)return;
+  const h=['N°','Empresa','Rubro','Dirección','Teléfono','Email','Web','Fuente'];
+  const r=empresasData.map((e,i)=>[i+1,'"'+(e.nombre||'').replace(/"/g,'""')+'"','"'+(e.rubro||'').replace(/"/g,'""')+'"','"'+(e.direccion||'').replace(/"/g,'""')+'"','"'+(e.telefono||'').replace(/"/g,'""')+'"','"'+(e.email||'').replace(/"/g,'""')+'"','"'+(e.web||'').replace(/"/g,'""')+'"','"'+(e._fuente||'').replace(/"/g,'""')+'"']);
+  const csv=[h.join(','),...r.map(x=>x.join(','))].join('\n');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
+  a.download=`empresas-${new Date().toISOString().split('T')[0]}.csv`;a.click();
+}
+</script>
+</body>
+</html>
