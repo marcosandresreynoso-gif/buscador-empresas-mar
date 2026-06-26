@@ -292,8 +292,10 @@ async function buscarPaginasAmarillas(rubro, ciudad, cantidad) {
         .toLowerCase()
         .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
-      // Tomamos la primera palabra significativa de la ciudad buscada
-      // (ej: "general villegas" → exige que aparezca "villegas")
+      // Exigimos TODAS las palabras significativas de la ciudad buscada,
+      // no solo una. Con .some() alcanzaba con que matchee "general" para
+      // colarse "General Pacheco" en una búsqueda de "General Villegas".
+      // Con .every() exigimos que también aparezca "villegas".
       const palabrasCiudad = ciudadNorm.split(' ').filter(p => p.length > 3);
       const coincide = palabrasCiudad.length === 0
         ? true
