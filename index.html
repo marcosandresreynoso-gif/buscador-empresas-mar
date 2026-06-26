@@ -47,6 +47,10 @@
   td a{color:var(--verde);text-decoration:none;}
   input[type=checkbox]{accent-color:var(--acento);width:14px;height:14px;}
   .badge{display:inline-block;font-size:10px;padding:2px 7px;border-radius:10px;border:1px solid #2A2A2A;color:var(--texto-sec);}
+  .badge-fuente{display:inline-block;font-size:10px;padding:2px 8px;border-radius:10px;margin-left:8px;}
+  .badge-fuente.maps{background:#4A9E7F20;color:var(--verde);border:1px solid var(--verde);}
+  .badge-fuente.pa{background:#C8A96E20;color:var(--acento);border:1px solid var(--acento);}
+  .badge-fuente.ia{background:#6E8FC820;color:var(--azul);border:1px solid var(--azul);}
   .envio-panel{background:#111;border:1px solid #2A2A2A;padding:20px;border-radius:4px;margin-top:14px;}
   .envio-panel h3{font-family:'Syne',sans-serif;font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--acento);margin-bottom:14px;}
   .envio-tabs{display:flex;gap:8px;margin-bottom:14px;}
@@ -66,6 +70,17 @@
   .archivo-fecha{font-size:10px;color:var(--texto-sec);}
   .archivo-count{font-size:11px;color:var(--acento);}
   .archivo-msg{font-size:11px;color:var(--texto-sec);margin-top:6px;line-height:1.5;white-space:pre-line;max-height:60px;overflow:hidden;}
+  .rubros-wrap{background:#111;border:1px solid #2A2A2A;border-radius:4px;padding:14px;margin-bottom:16px;}
+  .rubros-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;margin-bottom:12px;}
+  .rubro-chip{display:flex;align-items:center;gap:7px;background:#0A0A0A;border:1px solid #222;border-radius:4px;padding:8px 10px;cursor:pointer;transition:border-color .15s;}
+  .rubro-chip:hover{border-color:var(--acento);}
+  .rubro-chip input{cursor:pointer;}
+  .rubro-chip span{font-size:12px;color:#DDD9D0;}
+  .rubro-personalizado{display:flex;gap:8px;}
+  .rubro-personalizado input{flex:1;}
+  .chips-agregados{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
+  .chip-custom{display:flex;align-items:center;gap:6px;background:#0A0A0A;border:1px solid var(--acento);border-radius:14px;padding:4px 10px 4px 12px;font-size:11px;color:var(--acento);}
+  .chip-custom button{background:none;border:none;color:var(--acento);cursor:pointer;font-size:13px;line-height:1;padding:0;}
   @media(max-width:600px){.form-grid{grid-template-columns:1fr;}}
 </style>
 </head>
@@ -74,7 +89,7 @@
   <div class="logo">M-AR</div>
   <div class="header-info">
     <h1>Base de Datos Comercial</h1>
-    <p>M-AR & Asociados · Google Maps · Argentina</p>
+    <p>M-AR & Asociados · Google Maps · Páginas Amarillas · IA · Argentina</p>
   </div>
 </header>
 
@@ -88,7 +103,7 @@
 <!-- BÚSQUEDA -->
 <div class="tab-content activo" id="tab-busqueda">
   <div class="aviso">
-    <strong>✅ Google Maps activo:</strong> Datos reales verificados — teléfonos y webs existentes. Hasta 500 empresas por búsqueda con USD 300 de crédito gratuito.
+    <strong>✅ 3 fuentes disponibles:</strong> Google Maps (datos reales, requiere crédito), Páginas Amarillas (gratis, vía fichas públicas) e IA (estimados, gratis). Elegí abajo.
   </div>
   <div class="form-grid">
     <div class="form-group">
@@ -166,47 +181,54 @@
       </select>
     </div>
     <div class="form-group">
-      <label>Rubro</label>
-      <select id="rubro">
-        <option value="empresas">Todos los rubros</option>
-        <option value="estudio contable">Estudios contables</option>
-        <option value="estudio juridico abogados">Estudios jurídicos</option>
-        <option value="constructora construccion">Constructoras</option>
-        <option value="inmobiliaria">Inmobiliarias</option>
-        <option value="supermercado comercio">Comercios</option>
-        <option value="restaurante bar gastronomia">Gastronomía</option>
-        <option value="empresa tecnologia software">Tecnología</option>
-        <option value="transporte logistica">Transporte</option>
-        <option value="agropecuaria campo">Agropecuario</option>
-        <option value="clinica medico salud">Salud</option>
-        <option value="educacion colegio instituto">Educación</option>
-        <option value="ferreteria materiales">Ferreterías</option>
-        <option value="hotel turismo">Turismo</option>
-        <option value="banco financiera">Finanzas</option>
-      </select>
-    </div>
-    <div class="form-group">
-      <label>Cantidad</label>
+      <label>Cantidad (por rubro tildado)</label>
       <select id="cantidad">
         <option value="20">20 empresas</option>
         <option value="40" selected>40 empresas</option>
         <option value="60">60 empresas</option>
         <option value="100">100 empresas</option>
         <option value="200">200 empresas</option>
-        <option value="500">500 empresas (máximo)</option>
+        <option value="500">500 empresas (máximo, solo Maps)</option>
       </select>
     </div>
     <div class="form-group">
       <label>Fuente de datos</label>
       <select id="fuente">
         <option value="maps">Google Maps (datos reales)</option>
+        <option value="paginas_amarillas">Páginas Amarillas (gratis)</option>
         <option value="ia">IA (datos estimados)</option>
       </select>
     </div>
   </div>
+
+  <div class="rubros-wrap">
+    <label style="font-size:10px;color:var(--texto-sec);font-family:'Syne',sans-serif;letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:10px;">Rubros a buscar (tildá uno o varios — cada uno dispara su propia búsqueda)</label>
+    <div class="rubros-grid" id="rubros-grid">
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="estudio contable" checked><span>Estudios contables</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="constructora construccion"><span>Constructoras</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="inmobiliaria"><span>Inmobiliarias</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="estudio juridico abogados"><span>Estudios jurídicos</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="supermercado comercio"><span>Comercios</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="restaurante bar gastronomia"><span>Gastronomía</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="empresa tecnologia software"><span>Tecnología</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="transporte logistica"><span>Transporte</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="agropecuaria campo"><span>Agropecuario</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="clinica medico salud"><span>Salud</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="educacion colegio instituto"><span>Educación</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="ferreteria materiales"><span>Ferreterías</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="hotel turismo"><span>Turismo</span></label>
+      <label class="rubro-chip"><input type="checkbox" class="chk-rubro" value="banco financiera"><span>Finanzas</span></label>
+    </div>
+    <div class="rubro-personalizado">
+      <input type="text" id="rubro-custom-input" placeholder="Agregar otro rubro (ej: veterinaria, panadería...)">
+      <button class="btn btn-acento" onclick="agregarRubroCustom()" style="padding:10px 16px;">+ Agregar</button>
+    </div>
+    <div class="chips-agregados" id="chips-agregados"></div>
+  </div>
+
   <button class="btn btn-acento btn-full" id="btn-buscar" onclick="buscar()">🔍 Buscar empresas reales</button>
   <div class="prog-wrap" id="prog-wrap">
-    <div class="prog-label" id="prog-label">Conectando con Google Maps...</div>
+    <div class="prog-label" id="prog-label">Conectando...</div>
     <div class="prog-bar"><div class="prog-fill" id="prog-fill"></div></div>
   </div>
   <div id="resultados-wrap" style="display:none;margin-top:16px;">
@@ -235,6 +257,22 @@
 <!-- CONTACTAR -->
 <div class="tab-content" id="tab-contacto">
   <div id="seleccionados-info" style="font-size:12px;color:var(--texto-sec);margin-bottom:14px;">No hay empresas seleccionadas.</div>
+
+  <div class="envio-panel" style="margin-bottom:14px;">
+    <h3>Tus datos de contacto (se usan en los mensajes)</h3>
+    <div class="form-grid" style="margin-bottom:0;">
+      <div class="form-group">
+        <label>Tu WhatsApp (sin 0 ni 15, ej: 2392446792)</label>
+        <input type="text" id="mi-telefono" placeholder="Ej: 2392446792">
+      </div>
+      <div class="form-group">
+        <label>Tu Email</label>
+        <input type="email" id="mi-email" placeholder="Ej: contacto@tuempresa.com">
+      </div>
+    </div>
+    <div class="info-box" style="margin-top:10px;margin-bottom:0;">Estos datos reemplazan el teléfono/email dentro de los mensajes de WhatsApp y Email. Útil si estás vendiendo el servicio de búsqueda de clientes a otra empresa y no querés que aparezcan tus propios datos.</div>
+  </div>
+
   <div class="envio-panel">
     <h3>Canal de contacto</h3>
     <div class="envio-tabs">
@@ -242,65 +280,53 @@
       <button class="envio-tab" onclick="cambiarEnvioTab('email')">📧 Email</button>
     </div>
     <div class="envio-content activo" id="envio-whatsapp">
-      <div class="info-box"><strong>WhatsApp Web:</strong> Abre una conversación por cada empresa. Las respuestas llegan a tu número <strong>2392446792</strong>. Máximo 10 por vez recomendado.</div>
+      <div class="info-box"><strong>WhatsApp Web:</strong> Abre una conversación por cada empresa. Las respuestas llegan al número que pusiste arriba. Máximo 10 por vez recomendado.</div>
       <div class="form-group" style="margin-bottom:10px;">
         <label>Mensaje</label>
         <textarea id="msg-wa">Hola [NOMBRE] 👋, soy Marcos de M-AR & Asociados.
 
-Conseguimos clientes para tu empresa mediante IA 🤖
+🏗️ Te quiero contar sobre MARTOKEN: inversión inmobiliaria real, tokenizada, desde USD 100 — sin intervención estatal, con respaldo en activos físicos.
 
-Ofrecemos dos soluciones:
-✅ Automatización de procesos con IA — reducimos hasta 60% el tiempo operativo
-✅ Inversión inmobiliaria tokenizada desde USD 100 — Martoken
+👉 Visitá MAR-01, el proyecto activo: https://www.martoken.com.ar/mar01/
+🌐 Más info: https://www.martoken.com.ar
 
-🔗 Probá nuestro Agente IA gratis:
-https://agente-mar.onrender.com/demo
+Además, en M-AR conseguimos clientes para tu empresa mediante IA 🤖 — automatizamos la búsqueda y el primer contacto comercial.
 
-🌐 Más información:
-https://agente-mar.onrender.com/landing
+📱 [MI_TELEFONO]
+📧 [MI_EMAIL]
 
-📧 marcosandresreynoso@gmail.com
-📱 2392446792
-
-¿Tienen unos minutos para una reunión virtual?</textarea>
+¿Tenés unos minutos para una reunión virtual?</textarea>
       </div>
       <button class="btn btn-verde btn-full" onclick="enviarWhatsApp()">💬 Enviar por WhatsApp</button>
     </div>
     <div class="envio-content" id="envio-email">
-      <div class="info-box"><strong>Email:</strong> Copiá los emails o abrí Gmail con el mensaje listo. Respuestas a <strong>marcosandresreynoso@gmail.com</strong>.</div>
+      <div class="info-box"><strong>Email:</strong> Copiá los emails o abrí Gmail con el mensaje listo. Las respuestas llegan al email que pusiste arriba.</div>
       <div class="form-group" style="margin-bottom:10px;">
         <label>Asunto</label>
-        <input type="text" id="email-asunto" value="Conseguimos clientes para tu empresa mediante IA — M-AR & Asociados" />
+        <input type="text" id="email-asunto" value="Martoken — Inversión inmobiliaria tokenizada desde USD 100" />
       </div>
       <div class="form-group" style="margin-bottom:12px;">
         <label>Mensaje</label>
-        <textarea id="email-cuerpo" rows="12">Estimados,
+        <textarea id="email-cuerpo" rows="14">Estimados,
 
-Me comunico desde Organización M-AR & Asociados con una propuesta concreta:
+Me comunico desde Organización M-AR & Asociados.
 
-🤖 CONSEGUIMOS CLIENTES PARA TU EMPRESA MEDIANTE IA
-Implementamos sistemas de prospección comercial automatizada que generan contactos calificados y los alcanzan por WhatsApp y email, todo el país.
+🏗️ MARTOKEN — INVERSIÓN INMOBILIARIA TOKENIZADA
+Acceso a inversión en activos inmobiliarios reales desde USD 100, con respaldo físico, estructura legal privada y sin intervención estatal. Operamos sobre blockchain Polygon.
 
-🤖 AUTOMATIZACIÓN CON INTELIGENCIA ARTIFICIAL
-Agentes de IA que gestionan tareas comerciales, contables, legales y financieras reduciendo hasta 60% el tiempo operativo.
+👉 Visitá MAR-01, nuestro proyecto activo: https://www.martoken.com.ar/mar01/
+👉 Más información: https://www.martoken.com.ar
 
-Probá nuestro Agente IA gratis:
-👉 https://agente-mar.onrender.com/demo
-
-🏗️ INVERSIÓN INMOBILIARIA TOKENIZADA — MARTOKEN
-Acceso a inversión en activos reales desde USD 100, rendimientos 8-9% anual en blockchain Polygon.
-👉 https://martoken01.netlify.app/
-
-Más información sobre nuestros servicios:
-👉 https://agente-mar.onrender.com/landing
+🤖 ADEMÁS: CONSEGUIMOS CLIENTES PARA TU EMPRESA MEDIANTE IA
+En paralelo, desde M-AR implementamos sistemas de prospección comercial automatizada que generan contactos calificados para tu negocio, alcanzándolos por WhatsApp y email en todo el país.
 
 ¿Coordinamos una reunión virtual de 15 minutos?
 
 Saludos,
 Marcos Reynoso
 Organización M-AR & Asociados
-📱 2392446792
-📧 marcosandresreynoso@gmail.com</textarea>
+📱 [MI_TELEFONO]
+📧 [MI_EMAIL]</textarea>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap;">
         <button class="btn btn-verde" onclick="copiarEmails()">📋 Copiar emails</button>
@@ -326,37 +352,33 @@ Organización M-AR & Asociados
 <div class="tab-content" id="tab-plantillas">
   <div style="font-family:'Syne',sans-serif;font-size:10px;color:var(--texto-sec);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:14px;">Plantillas listas</div>
   <div style="background:#111;border:1px solid #2A2A2A;padding:16px;border-radius:4px;margin-bottom:10px;">
-    <div style="font-family:'Syne',sans-serif;font-size:11px;color:var(--verde);margin-bottom:8px;">💬 WhatsApp — Conseguimos clientes con IA</div>
+    <div style="font-family:'Syne',sans-serif;font-size:11px;color:var(--acento);margin-bottom:8px;">💬 WhatsApp — Martoken (prioridad)</div>
     <div style="font-size:12px;color:#DDD9D0;line-height:1.7;margin-bottom:12px;white-space:pre-line;">Hola [NOMBRE] 👋, soy Marcos de M-AR & Asociados.
 
-Conseguimos clientes para tu empresa mediante IA 🤖
+🏗️ Te quiero contar sobre MARTOKEN: inversión inmobiliaria real, tokenizada, desde USD 100.
 
-Probá gratis: https://agente-mar.onrender.com/demo
-Info: https://agente-mar.onrender.com/landing
+👉 Visitá MAR-01: https://www.martoken.com.ar/mar01/
+🌐 https://www.martoken.com.ar
 
-📱 2392446792</div>
+📱 [MI_TELEFONO]
+📧 [MI_EMAIL]</div>
     <button class="btn btn-verde" style="font-size:10px;padding:6px 12px;" onclick="usarPlantilla('wa',this.previousElementSibling.textContent)">Usar en WhatsApp</button>
   </div>
   <div style="background:#111;border:1px solid #2A2A2A;padding:16px;border-radius:4px;margin-bottom:10px;">
-    <div style="font-family:'Syne',sans-serif;font-size:11px;color:var(--acento);margin-bottom:8px;">💬 WhatsApp — Martoken inversión</div>
-    <div style="font-size:12px;color:#DDD9D0;line-height:1.7;margin-bottom:12px;white-space:pre-line;">Hola [NOMBRE], le escribo desde Martoken 🏗️
+    <div style="font-family:'Syne',sans-serif;font-size:11px;color:var(--verde);margin-bottom:8px;">💬 WhatsApp — Conseguimos clientes con IA</div>
+    <div style="font-size:12px;color:#DDD9D0;line-height:1.7;margin-bottom:12px;white-space:pre-line;">Hola [NOMBRE] 👋, soy Marcos de M-AR & Asociados.
 
-Inversión inmobiliaria real desde USD 100, rendimientos 8-9% anual en blockchain.
+Conseguimos clientes para tu empresa mediante IA 🤖 — automatizamos la búsqueda y el primer contacto comercial.
 
-Conocé el proyecto: https://martoken01.netlify.app/
-Info general: https://agente-mar.onrender.com/landing
-
-📱 2392446792 | marcosandresreynoso@gmail.com</div>
+📱 [MI_TELEFONO]
+📧 [MI_EMAIL]</div>
     <button class="btn btn-acento" style="font-size:10px;padding:6px 12px;" onclick="usarPlantilla('wa',this.previousElementSibling.textContent)">Usar en WhatsApp</button>
   </div>
 </div>
 
 <script>
 let empresasData=[], seleccionadas=[];
-
-const SYSTEM_PROMPT_IA=`Generás bases de datos de empresas argentinas en JSON puro. Solo JSON sin texto adicional.
-Formato: {"empresas":[{"nombre":"Empresa SRL","rubro":"Contabilidad","direccion":"Av. San Martín 1234, ciudad","telefono":"02396-123456","email":"","web":"www.empresa.com"}]}
-Empresas reales y verosímiles de Argentina. Teléfonos con código de área correcto.`;
+let rubrosCustom=[]; // rubros agregados a mano, además de los checkboxes fijos
 
 function cambiarTab(t){
   document.querySelectorAll('.tab').forEach((x,i)=>x.classList.toggle('activo',['busqueda','contacto','archivo','plantillas'][i]===t));
@@ -371,27 +393,58 @@ function cambiarEnvioTab(t){
   document.getElementById('envio-'+t).classList.add('activo');
 }
 
+function agregarRubroCustom(){
+  const input=document.getElementById('rubro-custom-input');
+  const val=input.value.trim();
+  if(!val) return;
+  if(rubrosCustom.includes(val)){input.value='';return;}
+  rubrosCustom.push(val);
+  input.value='';
+  renderChipsCustom();
+}
+
+function quitarRubroCustom(val){
+  rubrosCustom=rubrosCustom.filter(r=>r!==val);
+  renderChipsCustom();
+}
+
+function renderChipsCustom(){
+  const cont=document.getElementById('chips-agregados');
+  cont.innerHTML=rubrosCustom.map(r=>`<span class="chip-custom">${r}<button onclick="quitarRubroCustom('${r.replace(/'/g,"\\'")}')">×</button></span>`).join('');
+}
+
+function obtenerRubrosSeleccionados(){
+  const fijos=[...document.querySelectorAll('.chk-rubro:checked')].map(c=>c.value);
+  return [...fijos, ...rubrosCustom];
+}
+
 async function buscar(){
   const ciudad=document.getElementById('ciudad').value;
-  const rubro=document.getElementById('rubro').value;
   const cantidad=parseInt(document.getElementById('cantidad').value);
   const fuente=document.getElementById('fuente').value;
+  const rubros=obtenerRubrosSeleccionados();
+
+  if(!rubros.length){alert('Tildá al menos un rubro, o agregá uno personalizado.');return;}
 
   document.getElementById('btn-buscar').disabled=true;
   document.getElementById('prog-wrap').style.display='block';
   document.getElementById('resultados-wrap').style.display='none';
   empresasData=[];
 
-  await buscarBackend(ciudad,rubro,cantidad,fuente);
+  for(let i=0;i<rubros.length;i++){
+    const rubro=rubros[i];
+    document.getElementById('prog-label').textContent=`Buscando "${rubro}" (${i+1}/${rubros.length}) en ${ciudad}...`;
+    document.getElementById('prog-fill').style.width=`${Math.round(((i+0.5)/rubros.length)*100)}%`;
+    await buscarBackend(ciudad,rubro,cantidad,fuente);
+  }
 
+  document.getElementById('prog-fill').style.width='100%';
   mostrarTabla(ciudad);
   document.getElementById('btn-buscar').disabled=false;
   document.getElementById('prog-wrap').style.display='none';
 }
 
 async function buscarBackend(ciudad,rubro,cantidad,fuente){
-  document.getElementById('prog-label').textContent = fuente==='maps' ? `Consultando Google Maps — ${ciudad}...` : `Generando empresas con IA — ${ciudad}...`;
-  document.getElementById('prog-fill').style.width='30%';
   try{
     const res=await fetch('/buscar-empresas',{
       method:'POST',
@@ -399,12 +452,25 @@ async function buscarBackend(ciudad,rubro,cantidad,fuente){
       body:JSON.stringify({query:rubro,location:ciudad+' Argentina',cantidad,fuente})
     });
     const data=await res.json();
-    if(data.empresas) empresasData=data.empresas;
-    document.getElementById('prog-fill').style.width='100%';
+    if(data.empresas){
+      // evita duplicados exactos por nombre+telefono entre rubros ya buscados
+      const existentes=new Set(empresasData.map(e=>(e.nombre||'')+'|'+(e.telefono||'')));
+      data.empresas.forEach(e=>{
+        const key=(e.nombre||'')+'|'+(e.telefono||'');
+        if(!existentes.has(key)){empresasData.push({...e,_fuente:data.fuenteUsada});existentes.add(key);}
+      });
+    }
   }catch(e){
     console.error(e);
-    document.getElementById('prog-label').textContent='Error al buscar. Probá de nuevo.';
+    document.getElementById('prog-label').textContent=`Error buscando "${rubro}". Sigo con el resto...`;
   }
+}
+
+function badgeFuente(f){
+  if(!f) return '';
+  if(f.includes('maps')) return '<span class="badge-fuente maps">Maps</span>';
+  if(f.includes('paginas_amarillas')) return '<span class="badge-fuente pa">P.Amarillas</span>';
+  return '<span class="badge-fuente ia">IA</span>';
 }
 
 function mostrarTabla(ciudad){
@@ -417,7 +483,7 @@ function mostrarTabla(ciudad){
     tr.innerHTML=`<td><input type="checkbox" class="chk-empresa" value="${i}" onchange="actualizarSeleccion()"></td>
     <td style="color:var(--texto-sec)">${i+1}</td>
     <td><strong>${e.nombre||'-'}</strong></td>
-    <td><span class="badge">${(e.rubro||'-').substring(0,20)}</span></td>
+    <td><span class="badge">${(e.rubro||'-').substring(0,20)}</span>${badgeFuente(e._fuente)}</td>
     <td style="font-size:11px">${e.direccion||'-'}</td>
     <td>${e.telefono||'-'}</td>
     <td style="font-size:11px">${e.web?'<a href="http://'+e.web+'" target="_blank">'+e.web+'</a>':'—'}</td>`;
@@ -436,6 +502,17 @@ function irAContactar(){
   cambiarTab('contacto');
 }
 
+function obtenerMisDatos(){
+  const tel=document.getElementById('mi-telefono').value.trim() || '—';
+  const mail=document.getElementById('mi-email').value.trim() || '—';
+  return {tel,mail};
+}
+
+function aplicarMisDatos(texto){
+  const {tel,mail}=obtenerMisDatos();
+  return texto.replace(/\[MI_TELEFONO\]/g,tel).replace(/\[MI_EMAIL\]/g,mail);
+}
+
 async function guardarContactos(tipo,contactos,mensaje){
   try{
     await fetch('/guardar-contactos',{
@@ -449,11 +526,11 @@ async function guardarContactos(tipo,contactos,mensaje){
 function enviarWhatsApp(){
   actualizarSeleccion();
   if(!seleccionadas.length){alert('No hay empresas seleccionadas');return;}
-  const msg=document.getElementById('msg-wa').value;
+  const msgBase=aplicarMisDatos(document.getElementById('msg-wa').value);
   const estado=document.getElementById('estado-envio');
   let i=0;
 
-  guardarContactos('whatsapp',seleccionadas.map(e=>({nombre:e.nombre,telefono:e.telefono})),msg);
+  guardarContactos('whatsapp',seleccionadas.map(e=>({nombre:e.nombre,telefono:e.telefono})),msgBase);
 
   function abrir(){
     if(i>=seleccionadas.length){estado.textContent=`✅ ${seleccionadas.length} conversaciones abiertas y archivadas.`;return;}
@@ -461,7 +538,7 @@ function enviarWhatsApp(){
     const tel=(e.telefono||'').replace(/\D/g,'');
     if(tel&&tel.length>=8){
       const num=tel.length===10?'549'+tel:'54'+tel;
-      window.open(`https://wa.me/${num}?text=${encodeURIComponent(msg.replace(/\[NOMBRE\]/g,e.nombre||''))}`, '_blank');
+      window.open(`https://wa.me/${num}?text=${encodeURIComponent(msgBase.replace(/\[NOMBRE\]/g,e.nombre||''))}`, '_blank');
     }
     estado.textContent=`Enviando ${i+1}/${seleccionadas.length}: ${e.nombre}...`;
     i++;setTimeout(abrir,2500);
@@ -475,7 +552,7 @@ function copiarEmails(){
   if(!emails){alert('Ninguna empresa tiene email registrado');return;}
   navigator.clipboard.writeText(emails).then(()=>{
     document.getElementById('estado-envio').textContent=`✅ ${seleccionadas.filter(e=>e.email).length} emails copiados.`;
-    guardarContactos('email',seleccionadas.filter(e=>e.email).map(e=>({nombre:e.nombre,email:e.email})),document.getElementById('email-cuerpo').value);
+    guardarContactos('email',seleccionadas.filter(e=>e.email).map(e=>({nombre:e.nombre,email:e.email})),aplicarMisDatos(document.getElementById('email-cuerpo').value));
   });
 }
 
@@ -483,9 +560,9 @@ function abrirGmail(){
   actualizarSeleccion();
   const emails=seleccionadas.filter(e=>e.email).map(e=>e.email).join(',');
   const asunto=encodeURIComponent(document.getElementById('email-asunto').value);
-  const cuerpo=encodeURIComponent(document.getElementById('email-cuerpo').value);
+  const cuerpo=encodeURIComponent(aplicarMisDatos(document.getElementById('email-cuerpo').value));
   if(!emails){alert('Ninguna empresa tiene email');return;}
-  guardarContactos('email',seleccionadas.filter(e=>e.email).map(e=>({nombre:e.nombre,email:e.email})),document.getElementById('email-cuerpo').value);
+  guardarContactos('email',seleccionadas.filter(e=>e.email).map(e=>({nombre:e.nombre,email:e.email})),aplicarMisDatos(document.getElementById('email-cuerpo').value));
   window.open(`https://mail.google.com/mail/?view=cm&to=${emails}&su=${asunto}&body=${cuerpo}`,'_blank');
 }
 
@@ -527,8 +604,8 @@ function usarPlantilla(canal,texto){
 
 function exportarCSV(){
   if(!empresasData.length)return;
-  const h=['N°','Empresa','Rubro','Dirección','Teléfono','Email','Web'];
-  const r=empresasData.map((e,i)=>[i+1,'"'+(e.nombre||'').replace(/"/g,'""')+'"','"'+(e.rubro||'').replace(/"/g,'""')+'"','"'+(e.direccion||'').replace(/"/g,'""')+'"','"'+(e.telefono||'').replace(/"/g,'""')+'"','"'+(e.email||'').replace(/"/g,'""')+'"','"'+(e.web||'').replace(/"/g,'""')+'"']);
+  const h=['N°','Empresa','Rubro','Dirección','Teléfono','Email','Web','Fuente'];
+  const r=empresasData.map((e,i)=>[i+1,'"'+(e.nombre||'').replace(/"/g,'""')+'"','"'+(e.rubro||'').replace(/"/g,'""')+'"','"'+(e.direccion||'').replace(/"/g,'""')+'"','"'+(e.telefono||'').replace(/"/g,'""')+'"','"'+(e.email||'').replace(/"/g,'""')+'"','"'+(e.web||'').replace(/"/g,'""')+'"','"'+(e._fuente||'').replace(/"/g,'""')+'"']);
   const csv=[h.join(','),...r.map(x=>x.join(','))].join('\n');
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob(['\uFEFF'+csv],{type:'text/csv;charset=utf-8'}));
