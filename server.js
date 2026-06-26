@@ -222,19 +222,34 @@ async function extraerFichaConPuppeteer(browser, url, rubro, ciudadFallback) {
     });
 
     await page.goto(url, { waitUntil: 'networkidle2', timeout: 15000 });
+    await new Promise(r => setTimeout(r, 600)); // deja asentar el render inicial
 
-    // Si hay un botón "Ver Teléfono", lo clickeamos para revelar el número
-    await page.evaluate(() => {
-      const candidatos = [...document.querySelectorAll('button, a, span, div')];
-      const boton = candidatos.find(b => /ver tel[eé]fono/i.test(b.textContent || ''));
-      if (boton) boton.click();
-    }).catch(() => {});
-    await new Promise(r => setTimeout(r, 900));
+    // Si hay un botón "Ver Teléfono", lo clickeamos para revelar el número.
+    // Reintentamos un par de veces porque a veces el botón tarda en montarse.
+    for (let intento = 0; intento < 3; intento++) {
+      const clickeo = await page.evaluate(() => {
+        const candidatos = [...document.querySelectorAll('button, a, span, div')];
+        const boton = candidatos.find(b => /ver tel[eé]fono/i.test(b.textContent || '') && b.offsetParent !== null);
+        if (boton) { boton.click(); return true; }
+        return false;
+      }).catch(() => false);
+      await new Promise(r => setTimeout(r, 700));
+      if (clickeo) break;
+    }
 
     const nombre = (await page.title()).split(' en ')[0].split(' - ')[0].trim();
     const texto = await page.evaluate(() => document.body.innerText || '');
 
-    const telMatch = texto.match(/Tel[eé]fono[^0-9+]*([+0-9][0-9()\-\s]{6,20})/i);
+    // Teléfono: primero buscamos un link tel:, que es más confiable que el texto
+    let telefono = await page.evaluate(() => {
+      const a = document.querySelector('a[href^="tel:"]');
+      return a ? a.getAttribute('href').replace('tel:', '').trim() : '';
+    }).catch(() => '');
+    if (!telefono) {
+      const telMatch = texto.match(/Tel[eé]fono[^0-9+]*([+0-9][0-9()\-\s]{6,20})/i);
+      telefono = telMatch ? telMatch[1].trim() : '';
+    }
+
     const dirMatch = texto.match(/Direcci[oó]n[^A-Za-zÁÉÍÓÚñÑ]*([^\n]{5,90})/i);
 
     const email = await page.evaluate(() => {
@@ -242,17 +257,21 @@ async function extraerFichaConPuppeteer(browser, url, rubro, ciudadFallback) {
       return a ? a.getAttribute('href').replace('mailto:', '').split('?')[0] : '';
     }).catch(() => '');
 
+    // Web real de la empresa: descartamos paginasamarillas y dominios
+    // que son banners/publicidad propia del sitio (gurusoluciones,
+    // "anuncia-con-nosotros", google, facebook genéricos sin ruta, etc.)
     const web = await page.evaluate(() => {
-      const a = [...document.querySelectorAll('a[href^="http"]')].find(a => !/paginasamarillas/i.test(a.href));
+      const excluidos = /paginasamarillas|gurusoluciones|anuncia-con-nosotros|google\.com|doubleclick|facebook\.com\/paginasamarillas/i;
+      const a = [...document.querySelectorAll('a[href^="http"]')].find(a => !excluidos.test(a.href));
       return a ? a.href : '';
     }).catch(() => '');
 
-    if (!telMatch && !dirMatch && !email && !web) return null;
+    if (!telefono && !dirMatch && !email && !web) return null;
 
     return {
       nombre,
       rubro,
-      telefono: telMatch ? telMatch[1].trim() : '',
+      telefono: telefono || '',
       direccion: (dirMatch ? dirMatch[1].trim() : '') || ciudadFallback,
       email: email || '',
       web: web || '',
