@@ -210,77 +210,36 @@ function slugify(texto) {
     .replace(/\s+/g, '-');
 }
 
-async function extraerFichaConPuppeteer(browser, url, rubro, ciudadFallback) {
-  const page = await browser.newPage();
-  try {
-    await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36');
-    await page.setRequestInterception(true);
-    page.on('request', (req) => {
-      // Bloqueamos imágenes/fuentes/css para que cargue más rápido y liviano
-      if (['image', 'font', 'stylesheet', 'media'].includes(req.resourceType())) req.abort();
-      else req.continue();
-    });
+function mapearResultadoPA(r, rubro, ciudadFallback) {
+  if (!r) return null;
 
-    await page.goto(url, { waitUntil: 'networkidle2', timeout: 15000 });
-    await new Promise(r => setTimeout(r, 600)); // deja asentar el render inicial
+  // Teléfono: preferimos el formato lindo "(011) 4740 - 2174"
+  const telefono =
+    r.mainPhone?.phoneToShow ||
+    r.allPhones?.[0]?.phoneToShow ||
+    r.mainPhone?.number ||
+    r.allPhones?.[0]?.number || '';
 
-    // Si hay un botón "Ver Teléfono", lo clickeamos para revelar el número.
-    // Reintentamos un par de veces porque a veces el botón tarda en montarse.
-    for (let intento = 0; intento < 3; intento++) {
-      const clickeo = await page.evaluate(() => {
-        const candidatos = [...document.querySelectorAll('button, a, span, div')];
-        const boton = candidatos.find(b => /ver tel[eé]fono/i.test(b.textContent || '') && b.offsetParent !== null);
-        if (boton) { boton.click(); return true; }
-        return false;
-      }).catch(() => false);
-      await new Promise(r => setTimeout(r, 700));
-      if (clickeo) break;
-    }
+  const email = (Array.isArray(r.emails) && r.emails[0]) ? r.emails[0] : '';
+  const web = r.contactMap?.WEB?.[0] || '';
+  const whatsapp = r.contactMap?.WHATSAPP?.[0] || '';
 
-    const nombre = (await page.title()).split(' en ')[0].split(' - ')[0].trim();
-    const texto = await page.evaluate(() => document.body.innerText || '');
+  const ma = r.mainAddress || {};
+  const calle = [ma.streetName, ma.streetNumber].filter(Boolean).join(' ').trim();
+  const localidad = ma.localityToShow || ma.localityForSEO || '';
+  const direccion = [calle, localidad].filter(Boolean).join(', ') || ciudadFallback;
 
-    // Teléfono: primero buscamos un link tel:, que es más confiable que el texto
-    let telefono = await page.evaluate(() => {
-      const a = document.querySelector('a[href^="tel:"]');
-      return a ? a.getAttribute('href').replace('tel:', '').trim() : '';
-    }).catch(() => '');
-    if (!telefono) {
-      const telMatch = texto.match(/Tel[eé]fono[^0-9+]*([+0-9][0-9()\-\s]{6,20})/i);
-      telefono = telMatch ? telMatch[1].trim() : '';
-    }
+  if (!telefono && !email && !web && !calle) return null;
 
-    const dirMatch = texto.match(/Direcci[oó]n[^A-Za-zÁÉÍÓÚñÑ]*([^\n]{5,90})/i);
-
-    const email = await page.evaluate(() => {
-      const a = document.querySelector('a[href^="mailto:"]');
-      return a ? a.getAttribute('href').replace('mailto:', '').split('?')[0] : '';
-    }).catch(() => '');
-
-    // Web real de la empresa: descartamos paginasamarillas y dominios
-    // que son banners/publicidad propia del sitio (gurusoluciones,
-    // "anuncia-con-nosotros", google, facebook genéricos sin ruta, etc.)
-    const web = await page.evaluate(() => {
-    const excluidos = /paginasamarillas|amarillas\.(cl|com|net)|gurusoluciones|anuncia-con-nosotros|google\.com|doubleclick|facebook\.com\/paginasamarillas/i;
-      const a = [...document.querySelectorAll('a[href^="http"]')].find(a => !excluidos.test(a.href));
-      return a ? a.href : '';
-    }).catch(() => '');
-
-    if (!telefono && !dirMatch && !email && !web) return null;
-
-    return {
-      nombre,
-      rubro,
-      telefono: telefono || '',
-      direccion: (dirMatch ? dirMatch[1].trim() : '') || ciudadFallback,
-      email: email || '',
-      web: web || '',
-    };
-  } catch {
-    return null;
-  } finally {
-    await page.close().catch(() => {});
-  }
+  return {
+    nombre: r.name || 'Sin nombre',
+    rubro,
+    telefono: telefono || '',
+    direccion,
+    email: email || '',
+    web: web || '',
+    whatsapp: whatsapp || '',
+  };
 }
 
 async function buscarPaginasAmarillas(rubro, ciudad, cantidad) {
@@ -291,27 +250,59 @@ async function buscarPaginasAmarillas(rubro, ciudad, cantidad) {
   const ciudadSlug = slugify(ciudad);
   const listadoUrl = `${PA_BASE}/b/${rubroSlug}/${ciudadSlug}`;
 
+  // Para filtrar por localidad: normalizamos la ciudad buscada
+  const ciudadNorm = ciudadSlug.replace(/-/g, ' ');
+
   let browser;
-  const empresas = [];
+  let empresas = [];
   try {
     browser = await puppeteer.launch({ headless: true, args: PUPPETEER_ARGS });
 
     const listPage = await browser.newPage();
     await listPage.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36');
-    await listPage.goto(listadoUrl, { waitUntil: 'networkidle2', timeout: 20000 });
-    try { await listPage.waitForSelector('a[href*="/fichas/"]', { timeout: 8000 }); } catch {}
+    await listPage.setRequestInterception(true);
+    listPage.on('request', (req) => {
+      if (['image', 'font', 'stylesheet', 'media'].includes(req.resourceType())) req.abort();
+      else req.continue();
+    });
 
-    const fichas = await listPage.$$eval('a[href*="/fichas/"]', (as) => [...new Set(as.map(a => a.href))]).catch(() => []);
+    await listPage.goto(listadoUrl, { waitUntil: 'domcontentloaded', timeout: 20000 });
+
+    // Páginas Amarillas es Next.js: el listado completo viene en __NEXT_DATA__,
+    // con teléfono, email, web y localidad de cada empresa. Lo leemos de una
+    // sola vez (más rápido y liviano que entrar ficha por ficha).
+    const datos = await listPage.evaluate(() => {
+      const el = document.getElementById('__NEXT_DATA__');
+      if (!el) return null;
+      try { return JSON.parse(el.textContent); } catch { return null; }
+    }).catch(() => null);
+
     await listPage.close().catch(() => {});
 
-    const fichasLimitadas = fichas.slice(0, max);
+    const resultados = datos?.props?.pageProps?.results || [];
 
-    for (let i = 0; i < fichasLimitadas.length && empresas.length < max; i += PA_CONCURRENCY) {
-      const lote = fichasLimitadas.slice(i, i + PA_CONCURRENCY);
-      const resultados = await Promise.all(
-        lote.map(url => extraerFichaConPuppeteer(browser, url, rubro, ciudad))
-      );
-      resultados.forEach(r => { if (r) empresas.push(r); });
+    for (const r of resultados) {
+      if (empresas.length >= max) break;
+
+      // Filtro de localidad: descartamos empresas de otras ciudades
+      // (Páginas Amarillas a veces mezcla resultados de otras localidades)
+      const ma = r.mainAddress || {};
+      const locEmpresa = [ma.localityForSEO, ma.localityToShow, ma.addressLocality]
+        .filter(Boolean).join(' ')
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+
+      // Tomamos la primera palabra significativa de la ciudad buscada
+      // (ej: "general villegas" → exige que aparezca "villegas")
+      const palabrasCiudad = ciudadNorm.split(' ').filter(p => p.length > 3);
+      const coincide = palabrasCiudad.length === 0
+        ? true
+        : palabrasCiudad.some(p => locEmpresa.includes(p));
+
+      if (!coincide) continue;
+
+      const empresa = mapearResultadoPA(r, rubro, ciudad);
+      if (empresa) empresas.push(empresa);
     }
   } catch (e) {
     console.error('Error Puppeteer Páginas Amarillas:', e.message);
